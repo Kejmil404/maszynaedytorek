@@ -46,6 +46,12 @@ class editor_ui : public ui_layer
 	nodebank_panel::edit_mode mode();
 	void set_mode(nodebank_panel::edit_mode const Mode);
 	float getSpacing();
+	brush_object_list const &brush() const
+	{
+		return m_brushobjects;
+	}
+	// the templates the brush paints: of its set, or the one selected in the node bank
+	std::vector<std::string const *> brush_templates();
 	// node bank and model set access (set selection widgets, set contents)
 	nodebank_panel &nodebank()
 	{

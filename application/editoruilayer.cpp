@@ -711,7 +711,7 @@ void editor_ui::render_mode_options(nodebank_panel::edit_mode const Mode)
 		break;
 	}
 	case nodebank_panel::BRUSH:
-		ImGui::TextDisabled(STR_C("Hold LMB: paint models along the cursor path"));
+		ImGui::TextDisabled("%s", m_brushobjects.erase ? STR_C("Hold LMB: take away the models under the circle") : STR_C("Hold LMB: paint models along the cursor path"));
 		m_brushobjects.render_options(m_nodebankpanel);
 		m_functionspanel.render_controls();
 		break;
@@ -1156,6 +1156,24 @@ void editor_ui::set_mode(nodebank_panel::edit_mode const Mode)
 float editor_ui::getSpacing()
 {
 	return m_brushobjects.spacing;
+}
+
+std::vector<std::string const *> editor_ui::brush_templates()
+{
+	std::vector<std::string const *> result;
+	if (m_brushobjects.useRandom)
+	{
+		if (m_brushobjects.source.kind == model_set_ref::source::manual)
+			for (auto const &entry : m_brushobjects.Objects)
+				result.push_back(&entry);
+		else
+			result = m_nodebankpanel.set_entries(m_brushobjects.source);
+	}
+	// an empty set: the node bank selection, as when painting
+	if (result.empty())
+		if (auto const *selected{m_nodebankpanel.get_active_template()}; selected != nullptr)
+			result.push_back(selected);
+	return result;
 }
 
 functions_panel::rotation_mode editor_ui::rot_mode()

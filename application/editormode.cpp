@@ -803,6 +803,12 @@ void editor_mode::handle_brush_mouse_hold(int Action, int Button)
 
     if(mode != nodebank_panel::BRUSH)
         return;
+    // the brush which takes models away works on the ground under the cursor, without a pick
+    if (ui()->brush().erase)
+    {
+        brush_erase();
+        return;
+    }
     
     GfxRenderer->Pick_Node_Callback(
         [this, mode, rotation_mode, fixed_rotation_value, Action, Button](scene::basic_node * /*node*/) {
@@ -1723,6 +1729,7 @@ bool editor_mode::update()
     if (m_model_box.active && false == ImGui::GetIO().MouseDown[0])
         finish_model_box();
     draw_model_box();
+    draw_brush_erase();
     render_context_menu();
     steps.step("windows");
 
@@ -7682,6 +7689,8 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
         {
             mouseHold = true;
             m_brush_has_last = false; // every brush stroke starts with a placement
+            m_brush_erase.stroke = false; // and every stroke of the erasing brush is a step of its own
+            m_brush_erase.erased = 0;
 
             // in area fill mode the left button only adds outline points, it doesn't touch the selection
             if (mode == nodebank_panel::FILL)

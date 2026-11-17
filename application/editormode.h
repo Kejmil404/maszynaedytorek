@@ -330,6 +330,16 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void start_model_box();
 	void finish_model_box();
 	void draw_model_box() const;
+	// the brush which takes models away (Erase models in the options of the brush): a stroke is one step of the history
+	struct brush_erase_state
+	{
+		bool stroke{false}; // the models of the filter are known for this stroke
+		std::size_t erased{0}; // in this stroke
+		std::vector<std::string> models; // the model files the filter lets the brush take, normalised
+	};
+	brush_erase_state m_brush_erase;
+	void brush_erase();
+	void draw_brush_erase();
 	// the other models of the selection follow m_node moved or turned by the gizmo
 	void selection_snapshots(EditorSnapshot::Action const Action);
 	void selection_follow(glm::dvec3 const &Moved, glm::vec3 const &Turned, glm::dvec3 const &Pivot);

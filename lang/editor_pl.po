@@ -14396,3 +14396,32 @@ msgstr "Zasięg ramki modeli (m)"
 
 msgid "How far from the camera the models in a Shift+drag box are taken; a click on a model keeps the distance above"
 msgstr "Jak daleko od kamery ramka Shift+przeciągnij łapie modele; kliknięcie w model zachowuje odległość powyżej"
+
+# scenery editor: the brush which takes models away
+
+msgid "Erase models"
+msgstr "Usuwaj modele"
+
+msgid "Hold LMB: the models under the circle are taken away, the whole stroke in one step of the history; only of layers which can be edited, not those placed by templates"
+msgstr "Przytrzymaj LPM: modele pod kółkiem są usuwane, całe pociągnięcie to jeden krok historii; tylko z odblokowanych warstw, bez modeli z szablonów"
+
+msgid "Radius##erase"
+msgstr "Promień##erase"
+
+msgid "Only the models of the brush"
+msgstr "Tylko modele pędzla"
+
+msgid "Takes away only the models of the template selected in the node bank, or of the set below: the trees, say, and not the lamps among them"
+msgstr "Usuwa tylko modele szablonu zaznaczonego w banku albo z zestawu poniżej, np. drzewa, a nie latarnie między nimi"
+
+msgid "Takes away the models of the template selected in the node bank"
+msgstr "Usuwa modele szablonu zaznaczonego w banku"
+
+msgid "Hold LMB: take away the models under the circle"
+msgstr "Przytrzymaj LPM: usuwaj modele pod kółkiem"
+
+msgid "The filter of the brush has no model: select a template in the node bank or a set"
+msgstr "Filtr pędzla nie ma modelu: zaznacz szablon w banku albo zestaw"
+
+msgid "%zu models taken away in this stroke; Ctrl+Z brings them all back"
+msgstr "Usunięto %zu modeli w tym pociągnięciu; Ctrl+Z przywraca wszystkie"

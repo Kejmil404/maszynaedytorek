@@ -27,7 +27,13 @@ http://mozilla.org/MPL/2.0/.
 
 #include <glm/gtx/rotate_vector.hpp>
 #include <algorithm>
+#include <cctype>
+#include <cmath>
 #include <map>
+#include <numbers>
+#include <iterator>
+#include <sstream>
+#include <string_view>
 
 namespace
 {
@@ -36,6 +42,39 @@ namespace
 TAnimModel *as_model(scene::basic_node *Node)
 {
 	return Node != nullptr ? dynamic_cast<TAnimModel *>(Node) : nullptr;
+}
+
+// a model file the way it is compared: small letters, forward slashes, no extension
+std::string model_key(std::string_view const Name)
+{
+	std::string key{Name};
+	std::ranges::transform(key, key.begin(), [](unsigned char const Character) { return static_cast<char>(Character == '\\' ? '/' : std::tolower(Character)); });
+	if (auto const dot{key.rfind('.')}; dot != std::string::npos && key.find('/', dot) == std::string::npos)
+		key.erase(dot);
+	return key;
+}
+
+// the model file of a template of the node bank: "node <range> <range> <name> model <x> <y> <z> <angle> <file> ..."
+std::string template_model(std::string_view const Template)
+{
+	std::istringstream stream{std::string{Template}};
+	std::vector<std::string> words{std::istream_iterator<std::string>{stream}, std::istream_iterator<std::string>{}};
+	auto const kind{std::ranges::find(words, "model")};
+	// the file comes after the position and the angle
+	auto const offset{static_cast<std::size_t>(std::distance(words.begin(), kind)) + 5};
+	if (kind == words.end() || offset >= words.size())
+		return {};
+	return model_key(words[offset]);
+}
+
+// the same files, given with their folder or without it
+bool same_model(std::string_view const Model, std::string_view const Filter)
+{
+	if (Model.size() == Filter.size())
+		return Model == Filter;
+	auto const &longer{Model.size() > Filter.size() ? Model : Filter};
+	auto const &shorter{Model.size() > Filter.size() ? Filter : Model};
+	return longer.ends_with(shorter) && longer[longer.size() - shorter.size() - 1] == '/';
 }
 
 } // namespace
@@ -199,6 +238,82 @@ void editor_mode::draw_model_box() const
 	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
 	drawlist->AddRectFilled(from, io.MousePos, IM_COL32(255, 160, 40, 40));
 	drawlist->AddRect(from, io.MousePos, IM_COL32(255, 160, 40, 220), 0.0f, 0, 1.5f);
+}
+
+void editor_mode::brush_erase()
+{
+	auto &state{m_brush_erase};
+	auto const &options{ui()->brush()};
+	// the press over a panel: the brush isn't working
+	if (ImGui::GetIO().MouseDownOwned[0])
+		return;
+	glm::dvec3 centre;
+	if (false == cursor_on_ground(centre))
+		return;
+	if (false == state.stroke)
+	{
+		state.stroke = true;
+		state.models.clear();
+		if (options.erase_filter)
+			for (auto const *entry : ui()->brush_templates())
+				if (auto key{entry != nullptr ? template_model(*entry) : std::string{}}; false == key.empty())
+					state.models.push_back(std::move(key));
+	}
+	// with the filter on and nothing to filter by, nothing is taken
+	if (options.erase_filter && state.models.empty())
+	{
+		ui()->set_status(STR("The filter of the brush has no model: select a template in the node bank or a set"));
+		return;
+	}
+	auto const radius{static_cast<double>(options.erase_radius)};
+	std::vector<TAnimModel *> taken;
+	for (auto *model : simulation::Instances.sequence())
+	{
+		if (model == nullptr || false == model->visible() || model->from_template() || false == scene::Layers.editable(model))
+			continue;
+		auto const offset{model->location() - centre};
+		if (offset.x * offset.x + offset.z * offset.z > radius * radius)
+			continue;
+		if (options.erase_filter)
+		{
+			auto const key{model->Model() != nullptr ? model_key(model->Model()->NameGet()) : std::string{}};
+			if (key.empty() || std::ranges::none_of(state.models, [&key](std::string const &Filter) { return same_model(key, Filter); }))
+				continue;
+		}
+		taken.push_back(model);
+	}
+	for (auto *model : taken)
+	{
+		std::erase(m_selection, model);
+		// the first one of the stroke opens its step of the history, the others join it
+		delete_model(model, state.erased > 0);
+		++state.erased;
+	}
+	if (false == taken.empty())
+		ui()->set_status(format(STR_C("%zu models taken away in this stroke; Ctrl+Z brings them all back"), state.erased));
+}
+
+void editor_mode::draw_brush_erase()
+{
+	if (ui()->mode() != nodebank_panel::BRUSH || false == ui()->brush().erase || ImGui::GetIO().WantCaptureMouse)
+		return;
+	glm::dvec3 centre;
+	if (false == cursor_on_ground(centre))
+		return;
+	// a circle on the ground, its points at the height of the centre
+	screen_projection const projection;
+	auto const radius{static_cast<double>(ui()->brush().erase_radius)};
+	std::vector<ImVec2> points;
+	for (int i = 0; i < 48; ++i)
+	{
+		auto const angle{2.0 * std::numbers::pi * i / 48.0};
+		if (ImVec2 point; projection.project(centre + glm::dvec3{std::cos(angle) * radius, 0.0, std::sin(angle) * radius}, point))
+			points.push_back(point);
+	}
+	if (points.size() < 3)
+		return;
+	auto const color{mouseHold ? IM_COL32(255, 70, 50, 230) : IM_COL32(255, 120, 90, 180)};
+	ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())->AddPolyline(points.data(), static_cast<int>(points.size()), color, ImDrawFlags_Closed, 2.0f);
 }
 
 void editor_mode::selection_snapshots(EditorSnapshot::Action const Action)

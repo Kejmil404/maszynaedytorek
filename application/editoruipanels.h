@@ -117,6 +117,10 @@ class brush_object_list
 	bool useRandom = {false};
 	model_set_ref source;
 	float spacing{1.0f};
+	// the brush takes models away instead: those within the radius of the cursor on the ground, of layers which can be edited
+	bool erase{false};
+	float erase_radius{5.0f};
+	bool erase_filter{false}; // only the models of the templates the brush would paint
 };
 
 class nodebank_panel : public ui_panel

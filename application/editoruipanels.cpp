@@ -589,11 +589,24 @@ std::string *brush_object_list::GetRandomObject()
 
 void brush_object_list::render_options(nodebank_panel &Bank)
 {
-	ImGui::SliderFloat(STR_C("Spacing"), &spacing, 0.1f, 20.0f, "%.1f m");
+	ImGui::Checkbox(STR_C("Erase models"), &erase);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("Hold LMB: the models under the circle are taken away, the whole stroke in one step of the history; only of layers which can be edited, not those placed by templates"));
+	if (erase)
+	{
+		ImGui::SliderFloat(STR_C("Radius##erase"), &erase_radius, 1.0f, 50.0f, "%.0f m");
+		ImGui::Checkbox(STR_C("Only the models of the brush"), &erase_filter);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", STR_C("Takes away only the models of the template selected in the node bank, or of the set below: the trees, say, and not the lamps among them"));
+		if (false == erase_filter)
+			return;
+	}
+	else
+		ImGui::SliderFloat(STR_C("Spacing"), &spacing, 0.1f, 20.0f, "%.1f m");
 	ImGui::Checkbox(STR_C("Random model from set"), &useRandom);
 	if (false == useRandom)
 	{
-		ImGui::TextDisabled(STR_C("Paints the template selected in the node bank"));
+		ImGui::TextDisabled("%s", erase ? STR_C("Takes away the models of the template selected in the node bank") : STR_C("Paints the template selected in the node bank"));
 		return;
 	}
 	Bank.set_combo(STR_C("Preset"), source, STR_C("Manual list"));
