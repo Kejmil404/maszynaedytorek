@@ -14390,3 +14390,9 @@ msgstr "Dodano %zu modeli z ramki, zaznaczonych: %zu; Del je usuwa, gizmo przesu
 
 msgid "Shift+drag"
 msgstr "Shift+przeciągnij"
+
+msgid "Reach of the box of models (m)"
+msgstr "Zasięg ramki modeli (m)"
+
+msgid "How far from the camera the models in a Shift+drag box are taken; a click on a model keeps the distance above"
+msgstr "Jak daleko od kamery ramka Shift+przeciągnij łapie modele; kliknięcie w model zachowuje odległość powyżej"

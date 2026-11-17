@@ -168,12 +168,12 @@ void editor_mode::finish_model_box()
 	glm::vec2 const high{glm::max(box.from, to)};
 	screen_projection const projection;
 	glm::dvec3 const camera{Global.pCamera.Pos};
-	auto const reach{static_cast<double>(kMaxPlacementDistance)};
+	auto const reach{static_cast<double>(m_box_reach)};
 	auto const chosen{selected_nodes()};
 	std::size_t added{0};
 	for (auto *model : simulation::Instances.sequence())
 	{
-		// as with a click: the models within reach, of layers which can be edited, not placed by a template
+		// as with a click: the models of layers which can be edited, not placed by a template; within the reach of the box
 		if (model == nullptr || false == model->visible() || model->from_template() || false == scene::Layers.editable(model) || glm::distance(model->location(), camera) > reach)
 			continue;
 		if (ImVec2 point; false == projection.project(model->location(), point) || point.x < low.x || point.x > high.x || point.y < low.y || point.y > high.y)

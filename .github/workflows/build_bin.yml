@@ -451,7 +451,7 @@ jobs:
           tar -czf maszyna-linux-x64-noavx2.tar.gz -C maszyna-linux-x64-noavx2 .
           ls -la
 
-      - name: Publish rolling release of the branch
+      - name: Publish a release of the build
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -460,11 +460,13 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           slug="$(printf '%s' "$BRANCH" | tr '/ ' '--' | tr -cd '[:alnum:]._-')"
-          tag="build-$slug"
+          # one release per build, kept: the tag tells the branch, the number of the run and the commit
+          short="$(printf '%s' "$SHA" | cut -c1-7)"
+          tag="build-$slug-${{ github.run_number }}-$short"
           base="${{ github.server_url }}/${{ github.repository }}/releases/download/$tag"
 
           notes="$(printf '%s\n' \
-            "Automatic build of branch \`$BRANCH\`, commit $SHA, replaced by every push to the branch." \
+            "Automatic build of branch \`$BRANCH\`, commit $SHA (build ${{ github.run_number }}). Every build keeps its own release." \
             "" \
             "Download without a GitHub account:" \
             "- Windows: $base/maszyna-windows-x64.zip" \
@@ -474,7 +476,6 @@ jobs:
             "" \
             "Unpack over a MaSzyna installation (the game data isn't included). Build log: $RUN_URL")"
 
-          gh release delete "$tag" --yes --cleanup-tag || true
           gh release create "$tag" \
             dist/maszyna-windows-x64.zip \
             dist/maszyna-windows-x64-noavx2.zip \
@@ -483,7 +484,7 @@ jobs:
             --target "$SHA" \
             --prerelease \
             --latest=false \
-            --title "Build: $BRANCH" \
+            --title "Build ${{ github.run_number }}: $BRANCH ($short, $(date -u +%Y-%m-%d))" \
             --notes "$notes"
 
           echo "### Public download" >> "$GITHUB_STEP_SUMMARY"

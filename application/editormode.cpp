@@ -7928,6 +7928,10 @@ void editor_mode::render_change_history(){
     {
         kMaxPlacementDistance = std::max(0.0f, dist);
     }
+    if (ImGui::InputFloat(STR_C("Reach of the box of models (m)"), &m_box_reach, 100.0f, 1000.0f, "%.0f"))
+        m_box_reach = std::clamp(m_box_reach, 10.0f, 20000.0f);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("How far from the camera the models in a Shift+drag box are taken; a click on a model keeps the distance above"));
 
     ImGui::Separator();
 

@@ -244,6 +244,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool m_draw_cursor{false}; // the cursor drawn into the picture (View menu), on only while the editor is
 	bool mouseHold{false};
 	float kMaxPlacementDistance = 200.0f;
+	// m, how far from the camera the Shift+drag box reaches; only the box, a click keeps kMaxPlacementDistance
+	float m_box_reach{1000.0f};
 	static bool m_change_history;
 	static bool m_settings_open;
 
