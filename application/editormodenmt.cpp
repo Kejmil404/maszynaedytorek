@@ -1622,6 +1622,16 @@ void editor_mode::render_nmt_all_tracks(bool const Terrain_panel)
 	if (way_card("##nmtonto", STR_C("Tracks onto the terrain"), onto_text.c_str(), way_sketch::onto, true, ready && unfitted > 0))
 		nmt_auto_start(true);
 	item_tooltip("The terrain model is loaded along the tracks and the tracks go onto it, wherever the scenery was built: the top of the ballast at the height of the model, the grade line of every line fitted to it within the limits of the line, switches and the tracks beside them on one grade line, the formation and the slopes made along them. Where the model is off the tracks keep their line and it's reported. A turntable stays level in its pit at the height of the tracks running up to it, which reach it level. The tracks fitted already, by it or with the profile, and not changed since stay as they are, and the new lines meet them");
+	// the selected tracks alone, all of them anew, the others staying as they are
+	{
+		auto const selected{selected_tracks().size()};
+		ImGui::BeginDisabled(false == ready || selected == 0);
+		if (ImGui::SmallButton((format(STR_C("Only the selected (%zu)"), selected) + "###nmtonly").c_str()))
+			nmt_auto_selected();
+		ImGui::EndDisabled();
+		item_tooltip("The tracks selected in the tracks (F3) go onto the terrain model, all of them anew, the fitted ones too: the other tracks stay as they are, and the selected ones meet them at their ends within the limits of the line");
+		ImGui::SameLine();
+	}
 	// the fitted ones too, and which are left after it: under the card they belong to
 	ImGui::BeginDisabled(false == ready || all == 0);
 	if (unfitted < all && ImGui::SmallButton(STR_C("All anew, the fitted ones too")))
@@ -2807,7 +2817,24 @@ std::size_t editor_mode::nmt_level_turntables()
 bool editor_mode::nmt_stays(TTrack const &Track)
 {
 	auto const &state{m_nmt_state};
+	if (false == state.only.empty() && false == state.only.contains(&Track))
+		return true;
 	return (state.unfitted && grade_fitted(Track)) || (false == state.redo_hand && grade_hand(Track));
+}
+
+void editor_mode::nmt_auto_selected()
+{
+	auto &state{m_nmt_state};
+	state.only_next.clear();
+	for (auto const *track : selected_tracks())
+		if (track != nullptr && false == track->m_editorremoved)
+			state.only_next.insert(track);
+	if (state.only_next.empty())
+	{
+		state.status = STR("Select the tracks first: F3, click or Shift+drag");
+		return;
+	}
+	nmt_auto_start(false);
 }
 
 void editor_mode::nmt_auto_start(bool const Unfitted)
@@ -2816,6 +2843,7 @@ void editor_mode::nmt_auto_start(bool const Unfitted)
 	state.error.clear();
 	state.under = false;
 	state.unfitted = Unfitted;
+	state.only = std::exchange(state.only_next, {});
 	state.result = false;
 	state.findings.clear();
 	nmt_locate();

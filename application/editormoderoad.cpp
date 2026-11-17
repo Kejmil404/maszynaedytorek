@@ -146,6 +146,97 @@ double const kLongestStretch{2000.0}; // a single click doesn't lead a road furt
 double const kProfileSteps[]{50.0, 25.0, 12.5};
 double const kSunkTolerance{0.05}; // how far under the height it's built at the road can get between the points it's led through
 double const kRaisedTolerance{0.5}; // and how far over it
+// After set where it differs from Before: what was changed in the window goes to Target, the rest of Target stays
+template <class Value_>
+void take_changed(Value_ &Target, Value_ const &Before, Value_ const &After)
+{
+	if (false == (After == Before))
+		Target = After;
+}
+
+// the layout of a piece with the changes made in the window (from Before to After) made to it: the lanes as one, as their
+// number, widths and the rules of changing them go together; its axis, its taper, how far apart its directions are and the
+// rounded ends between them stay its own, as when the change goes to the whole road
+road_node::state road_merged(road_node::state Target, road_node::state const &Before, road_node::state const &After)
+{
+	if (After.forward != Before.forward || After.backward != Before.backward || After.lanewidth != Before.lanewidth || false == (After.lanes == Before.lanes))
+	{
+		Target.forward = After.forward;
+		Target.backward = After.backward;
+		Target.lanewidth = After.lanewidth;
+		Target.lanes = After.lanes;
+		Target.missing = After.missing;
+		if (Target.changes.size() != After.changes.size())
+			Target.changes = After.changes;
+	}
+	take_changed(Target.changes, Before.changes, After.changes);
+	take_changed(Target.velocity, Before.velocity, After.velocity);
+	take_changed(Target.surface, Before.surface, After.surface);
+	take_changed(Target.texturelength, Before.texturelength, After.texturelength);
+	for (std::size_t side = 0; side < Target.sides.size(); ++side)
+	{
+		take_changed(Target.sides[side], Before.sides[side], After.sides[side]);
+		take_changed(Target.kerbs[side], Before.kerbs[side], After.kerbs[side]);
+		take_changed(Target.banks[side], Before.banks[side], After.banks[side]);
+	}
+	take_changed(Target.kerbheight, Before.kerbheight, After.kerbheight);
+	take_changed(Target.slope, Before.slope, After.slope);
+	take_changed(Target.markings, Before.markings, After.markings);
+	take_changed(Target.friction, Before.friction, After.friction);
+	take_changed(Target.sounddistance, Before.sounddistance, After.sounddistance);
+	take_changed(Target.quality, Before.quality, After.quality);
+	take_changed(Target.environment, Before.environment, After.environment);
+	take_changed(Target.weight, Before.weight, After.weight);
+	take_changed(Target.median.type, Before.median.type, After.median.type);
+	take_changed(Target.median.material, Before.median.material, After.median.material);
+	take_changed(Target.kerbwidth, Before.kerbwidth, After.kerbwidth);
+	take_changed(Target.kerbmaterial, Before.kerbmaterial, After.kerbmaterial);
+	take_changed(Target.bankmaterial, Before.bankmaterial, After.bankmaterial);
+	take_changed(Target.roundabout, Before.roundabout, After.roundabout);
+	Target.normalize();
+	return Target;
+}
+
+double const kGroundSpike{2.5}; // m, a joint this much over or under both its neighbours on the ground is a spike, not the ground...
+double const kGroundSpikeGrade{0.1}; // ...and this much more for every metre between the joints, for a crest or a hollow of the ground
+
+// the heights of the joints of a road (the first Joints of Ground, in order; the middles of the pieces after them): those not
+// found taken from the nearest found ones along the road, and a lone spike levelled between its neighbours
+void road_ground_mend(std::vector<double> &Ground, std::vector<char> const &Found, std::size_t const Joints, double const Step)
+{
+	auto const count{std::min({Joints, Ground.size(), Found.size()})};
+	std::vector<std::size_t> known;
+	for (std::size_t i = 0; i < count; ++i)
+		if (Found[i] != 0)
+			known.push_back(i);
+	if (known.empty())
+		return;
+	for (std::size_t i = 0; i < count; ++i)
+	{
+		if (Found[i] != 0)
+			continue;
+		auto const after{std::ranges::lower_bound(known, i)};
+		if (after == known.begin())
+			Ground[i] = Ground[*after];
+		else if (after == known.end())
+			Ground[i] = Ground[known.back()];
+		else
+		{
+			auto const before{*(after - 1)};
+			auto const share{static_cast<double>(i - before) / static_cast<double>(*after - before)};
+			Ground[i] = std::lerp(Ground[before], Ground[*after], share);
+		}
+	}
+	// the ends are where the road is attached, they aren't levelled
+	auto const spike{kGroundSpike + kGroundSpikeGrade * Step};
+	for (std::size_t i = 1; i + 1 < count; ++i)
+	{
+		auto const up{Ground[i] - std::max(Ground[i - 1], Ground[i + 1])};
+		auto const down{std::min(Ground[i - 1], Ground[i + 1]) - Ground[i]};
+		if (up > spike || down > spike)
+			Ground[i] = 0.5 * (Ground[i - 1] + Ground[i + 1]);
+	}
+}
 
 ImU32 const kForwardColor{IM_COL32(70, 230, 110, 230)};
 ImU32 const kBackwardColor{IM_COL32(255, 170, 50, 230)};
@@ -233,6 +324,16 @@ void editor_mode::update_road_tool()
 	auto &tool{m_roadtool};
 	if (tool.selected != nullptr && tool.selected->m_editorremoved)
 		tool.selected = nullptr;
+	std::erase_if(tool.many, [&tool](road_node const *Road) { return Road == nullptr || Road->m_editorremoved || Road == tool.selected; });
+	// the one shown in the window gone, the next of the others takes its place
+	if (tool.selected == nullptr && false == tool.many.empty())
+	{
+		auto *next{tool.many.front()};
+		tool.many.erase(tool.many.begin());
+		road_select(next);
+	}
+	if (tool.tool != 0 || false == tool.window)
+		tool.many.clear();
 	if (tool.junction != nullptr && tool.junction->m_editorremoved)
 		tool.junction = nullptr;
 	if (tool.marker != nullptr && tool.marker->m_editorremoved)
@@ -1076,7 +1177,11 @@ void editor_mode::road_profile(std::vector<segment_data> &Pieces, double const *
 		// the planner leads the road between its ends, which are over the ground already
 		for (auto &point : points)
 			point.y -= tool.offset;
-		auto ground{ground_heights(points, Fresh)};
+		std::vector<char> found;
+		auto ground{ground_heights(points, Fresh, &found, true)};
+		// where the ground isn't known, as before a tile of it is gathered, the joints take it from their neighbours rather than
+		// from the plan, and a lone joint far over or under both of them is taken for something else than the ground
+		road_ground_mend(ground, found, count + 1, step);
 		for (auto &height : ground)
 			height += tool.offset;
 		std::vector<double> heights(ground.begin(), ground.begin() + count + 1);
@@ -1231,11 +1336,19 @@ void editor_mode::road_click()
 			else
 				tool.points.emplace_back(joint);
 			tool.selected = nullptr;
+			tool.many.clear();
 			tool.junction = nullptr;
 			tool.status = format(STR_C("Points selected: %d"), static_cast<int>(tool.points.size()));
 			return;
 		}
 		tool.points.clear();
+		// with Shift a piece is added to the selected ones, or taken out of them
+		if (Global.shiftState && under != nullptr && tool.selected != nullptr)
+		{
+			road_toggle(under);
+			return;
+		}
+		tool.many.clear();
 		if (under == nullptr && junction_under == nullptr)
 			tool.status = STR_C("No road here");
 		road_select(under);
@@ -1455,11 +1568,166 @@ void editor_mode::road_click()
 	tool.status += STR_C(", Ctrl+Z takes them back");
 }
 
+void editor_mode::road_toggle(road_node *Road)
+{
+	auto &tool{m_roadtool};
+	if (Road == nullptr)
+		return;
+	if (Road == tool.selected)
+	{
+		// the one in the window taken out: the next of the others takes its place
+		if (tool.many.empty())
+			road_select(nullptr);
+		else
+		{
+			auto *next{tool.many.front()};
+			tool.many.erase(tool.many.begin());
+			road_select(next);
+		}
+	}
+	else if (auto const listed{std::ranges::find(tool.many, Road)}; listed != tool.many.end())
+		tool.many.erase(listed);
+	else if (tool.selected == nullptr)
+		road_select(Road);
+	else
+		tool.many.push_back(Road);
+	tool.status = format(STR_C("Pieces selected: %d"), static_cast<int>(road_selection().size()));
+}
+
+std::vector<road_node *> editor_mode::road_selection() const
+{
+	auto const &tool{m_roadtool};
+	std::vector<road_node *> result;
+	if (tool.selected != nullptr && false == tool.selected->m_editorremoved)
+		result.push_back(tool.selected);
+	for (auto *road : tool.many)
+		if (road != nullptr && false == road->m_editorremoved && std::ranges::find(result, road) == result.end())
+			result.push_back(road);
+	return result;
+}
+
+void editor_mode::road_apply_many()
+{
+	auto &tool{m_roadtool};
+	tool.settings.normalize();
+	auto const before{tool.selected->definition()};
+	auto const after{tool.settings};
+	// the whole roads of the selected pieces, with the change going to the whole road, each piece once
+	std::vector<road_node *> pieces;
+	for (auto *road : road_selection())
+		for (auto *piece : tool.whole ? editor_road::chain(*road) : std::vector<road_node *>{road})
+			if (std::ranges::find(pieces, piece) == pieces.end())
+				pieces.push_back(piece);
+	editor_road::record record;
+	std::vector<std::pair<road_node *, road_node::state>> changes;
+	std::size_t skipped{0};
+	for (auto *road : pieces)
+	{
+		// a piece which can't be edited is left out, the others are changed
+		if (false == editor_road::can_edit(*road))
+		{
+			++skipped;
+			continue;
+		}
+		record.roads.emplace_back(road, road->definition());
+		changes.emplace_back(road, road_merged(road->definition(), before, after));
+	}
+	if (changes.empty())
+	{
+		road_select(tool.selected);
+		tool.status = STR_C("None of the selected pieces can be changed");
+		return;
+	}
+	editor_road::apply(changes);
+	std::string notes;
+	for (auto const &change : changes)
+		editor_road::settle(*change.first, record, notes);
+	push_road_snapshot(std::move(record));
+	tool.settings = tool.selected->definition();
+	tool.status = format(STR_C("Pieces changed: %d, Ctrl+Z takes it back"), static_cast<int>(changes.size()));
+	if (skipped > 0)
+		tool.status += format(STR_C(". %d can't be changed and stay as they were"), static_cast<int>(skipped));
+	if (false == notes.empty())
+		tool.status += ". " + notes;
+}
+
+void editor_mode::road_box_start()
+{
+	auto &tool{m_roadtool};
+	auto &box{tool.box};
+	auto const &io{ImGui::GetIO()};
+	++box.press;
+	box.active = true;
+	box.from = {io.MousePos.x, io.MousePos.y};
+	box.selected = tool.selected;
+	box.many = tool.many;
+	box.points = tool.points;
+}
+
+void editor_mode::road_box_finish()
+{
+	auto &tool{m_roadtool};
+	auto &box{tool.box};
+	if (false == box.active)
+		return;
+	box.active = false;
+	auto const &io{ImGui::GetIO()};
+	glm::vec2 const to{io.MousePos.x, io.MousePos.y};
+	if (glm::length(to - box.from) < 6.0f || tool.tool != 0 || false == tool.window)
+		return;
+	box.dragged = box.press;
+	// the pick of the press may have come already: the selection goes back to what it was before it
+	tool.points = box.points;
+	tool.many = box.many;
+	if (tool.selected != box.selected)
+		road_select(box.selected);
+	glm::vec2 const low{glm::min(box.from, to)};
+	glm::vec2 const high{glm::max(box.from, to)};
+	screen_projection const projection;
+	glm::dvec3 const camera{Global.pCamera.Pos};
+	auto const chosen{road_selection()};
+	int added{0};
+	for (auto *road : simulation::Roads.sequence())
+	{
+		if (road == nullptr || road->m_editorremoved || glm::distance(road->location(), camera) > kReach || std::ranges::find(chosen, road) != chosen.end())
+			continue;
+		// the middle of the axis on the screen
+		auto const middle{path_point(road->definition().axis, 0.5)};
+		if (ImVec2 point; false == projection.project(middle, point) || point.x < low.x || point.x > high.x || point.y < low.y || point.y > high.y)
+			continue;
+		if (tool.selected == nullptr)
+			road_select(road);
+		else
+			tool.many.push_back(road);
+		++added;
+	}
+	tool.points.clear();
+	tool.junction = nullptr;
+	tool.status = format(STR_C("Pieces in the box added: %d, selected: %d"), added, static_cast<int>(road_selection().size()));
+}
+
+void editor_mode::draw_road_box() const
+{
+	auto const &box{m_roadtool.box};
+	auto const &io{ImGui::GetIO()};
+	if (false == box.active || glm::length(glm::vec2{io.MousePos.x, io.MousePos.y} - box.from) < 6.0f)
+		return;
+	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
+	ImVec2 const from{box.from.x, box.from.y};
+	drawlist->AddRectFilled(from, io.MousePos, IM_COL32(255, 160, 40, 40));
+	drawlist->AddRect(from, io.MousePos, IM_COL32(255, 160, 40, 220), 0.0f, 0, 1.5f);
+}
+
 void editor_mode::road_apply()
 {
 	auto &tool{m_roadtool};
 	if (tool.selected == nullptr)
 		return;
+	if (false == tool.many.empty())
+	{
+		road_apply_many();
+		return;
+	}
 	tool.settings.normalize();
 	// other lanes at the end are something the selected piece has for itself; the rest of the road keeps the lanes it has
 	auto const pieces{tool.whole && false == tool.settings.changing() ? editor_road::chain(*tool.selected) : std::vector<road_node *>{tool.selected}};
@@ -1555,6 +1823,27 @@ bool editor_mode::road_delete()
 		tool.status = format(STR_C("\"%s\" deleted, Ctrl+Z brings it back"), junction->name().c_str());
 		return true;
 	}
+	if (false == tool.many.empty())
+	{
+		// the selected pieces together, those which can be edited, in one step of the history
+		std::vector<road_node *> gone;
+		for (auto *piece : road_selection())
+			if (editor_road::can_edit(*piece, &reason))
+				gone.push_back(piece);
+		if (gone.empty())
+		{
+			tool.status = format(STR_C("Can't delete: %s"), STR(reason).c_str());
+			return true;
+		}
+		editor_road::remove(gone);
+		for (auto *piece : gone)
+			record.roads_removed.emplace_back(piece);
+		push_road_snapshot(std::move(record));
+		tool.selected = nullptr;
+		tool.many.clear();
+		tool.status = format(STR_C("Pieces deleted: %d, Ctrl+Z brings them back"), static_cast<int>(gone.size()));
+		return true;
+	}
 	auto *road{tool.selected};
 	if (false == editor_road::can_edit(*road, &reason))
 	{
@@ -1617,7 +1906,7 @@ std::pair<float, float> editor_mode::bank_reach(glm::dvec3 const &Edge, glm::dve
 	std::vector<glm::dvec3> probes;
 	for (int step = 1; step <= steps; ++step)
 		probes.emplace_back(Edge + Outwards * (step * kBankStep));
-	auto const ground{ground_heights(probes, true)};
+	auto const ground{ground_heights(probes, true, nullptr, true)};
 	// the bank ends where a slope of the set grade, going down or up, gets to the ground
 	auto const rising{ground.front() > Edge.y};
 	auto width{kBankReach};
@@ -2486,7 +2775,7 @@ void editor_mode::render_road_selection()
 			if (ImGui::Button(STR_C("Put on the ground")))
 			{
 				// a point with nothing under it comes back with the height it has, and is left where it is
-				auto const ground{ground_heights(tool.points, true)};
+				auto const ground{ground_heights(tool.points, true, nullptr, true)};
 				for (std::size_t index = 0; index < heights.size(); ++index)
 					if (ground[index] != tool.points[index].y)
 						heights[index] = ground[index] + tool.offset;
@@ -2538,6 +2827,12 @@ void editor_mode::render_road_selection()
 			ImGui::Checkbox(STR_C("Changes go to the whole road"), &tool.whole);
 		item_tooltip("A road is a string of pieces. With this on a change of the layout is made to all of them,\nexcept for the lane change rules, which are always set for the selected piece alone.\nWith this off the selected piece alone is changed, and the road next to it is fitted to it:\nmade wider or narrower towards it, or given a stretch where the lanes change if their number differs.\nSplit a piece (K) to get a piece of the length you need");
 		ImGui::Separator();
+		if (false == tool.many.empty())
+		{
+			ImGui::Text(STR_C("Pieces selected: %d"), static_cast<int>(tool.many.size() + 1));
+			item_tooltip("The layout of the first one is shown. A change made to it goes to all of them, only what was changed: the rest each keeps as it is. Del deletes them all");
+		}
+		gesture_rows({{"Shift+LMB", "adds a piece, or takes it out"}, {"Shift+drag", "adds the pieces in a box"}});
 		if (tool.selected != nullptr && render_road_layout(tool.settings))
 			road_apply();
 	}
@@ -2756,6 +3051,9 @@ void editor_mode::draw_road_overlay() const
 			drawpoint(point->definition().position, kSelectedColor, 15.0f, false);
 	}
 
+	for (auto const *piece : tool.many)
+		if (piece != nullptr && false == piece->m_editorremoved)
+			drawroad(piece->definition(), kSelectedColor);
 	if (tool.selected != nullptr && false == tool.selected->m_editorremoved)
 	{
 		auto const &state{tool.selected->definition()};

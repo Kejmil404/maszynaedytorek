@@ -89,12 +89,16 @@ class road_node : public scene::basic_node
 	{
 		float width{3.5f};
 		float velocity{-1.f}; // speed limit, none if negative
+
+		bool operator==(lane_data const &Other) const = default;
 	};
 	struct side_data
 	{
 		side_type type{side_type::none};
 		float width{0.f};
 		std::string material;
+
+		bool operator==(side_data const &Other) const = default;
 	};
 	// what keeps the two directions of a road apart, where they're led away from each other
 	enum class median_type
@@ -109,6 +113,8 @@ class road_node : public scene::basic_node
 		std::array<float, 2> width{0.f, 0.f}; // at the start and at the end of the axis
 		std::string material{"none"}; // what an island is covered with
 		std::array<float, 2> round{0.f, 0.f}; // length of the rounded end of an island, at the start and at the end of the axis. 0: the island is cut straight
+
+		bool operator==(median_data const &Other) const = default;
 	};
 	// slope leading from the edge of the road down, or up, to the ground
 	struct bank_data

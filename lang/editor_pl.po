@@ -14442,3 +14442,53 @@ msgstr "F11 z edytora: wolna kamera zostaje tam, gdzie kamera edytora, a nie tam
 
 msgid "The start camera is set where the camera is; it goes into the scenery with the next save (Ctrl+S)"
 msgstr "Kamera startowa ustawiona w miejscu kamery; trafi do scenerii przy następnym zapisie (Ctrl+S)"
+
+# scenery editor: the top view in the older renderer, the selected tracks onto the terrain, the scale of the selection, many roads
+
+msgid "Only the selected (%zu)"
+msgstr "Tylko zaznaczone (%zu)"
+
+msgid "The tracks selected in the tracks (F3) go onto the terrain model, all of them anew, the fitted ones too: the other tracks stay as they are, and the selected ones meet them at their ends within the limits of the line"
+msgstr "Tory zaznaczone w torach (F3) trafiają na model terenu, wszystkie od nowa, także już dopasowane: pozostałe tory zostają bez zmian, a zaznaczone łączą się z nimi na końcach w granicach parametrów linii"
+
+msgid "Select the tracks first: F3, click or Shift+drag"
+msgstr "Najpierw zaznacz tory: F3, kliknięcie albo Shift+przeciągnij"
+
+msgid "Scale the spacing too"
+msgstr "Skaluj też rozstaw"
+
+msgid "The selected models move away from the one held, or closer to it, as if they were one thing; off, each grows where it stands"
+msgstr "Zaznaczone modele odsuwają się od trzymanego albo przysuwają do niego, jakby były jednym obiektem; wyłączone: każdy rośnie w swoim miejscu"
+
+msgid "Factor##selscale"
+msgstr "Mnożnik##selscale"
+
+msgid "Scale the selected"
+msgstr "Skaluj zaznaczone"
+
+msgid "%zu models scaled x%.2f; Ctrl+Z takes it back"
+msgstr "Przeskalowano %zu modeli x%.2f; Ctrl+Z cofa"
+
+msgid "adds a piece, or takes it out"
+msgstr "dodaje odcinek albo go zdejmuje"
+
+msgid "adds the pieces in a box"
+msgstr "dodaje odcinki w ramce"
+
+msgid "The layout of the first one is shown. A change made to it goes to all of them, only what was changed: the rest each keeps as it is. Del deletes them all"
+msgstr "Pokazany jest układ pierwszego. Zmiana trafia do wszystkich, tylko to, co zmieniono: resztę każdy zachowuje. Del usuwa wszystkie"
+
+msgid "Pieces deleted: %d, Ctrl+Z brings them back"
+msgstr "Usunięto odcinków: %d, Ctrl+Z je przywraca"
+
+msgid "None of the selected pieces can be changed"
+msgstr "Żadnego z zaznaczonych odcinków nie można zmienić"
+
+msgid ". %d can't be changed and stay as they were"
+msgstr ". %d nie można zmienić i zostają bez zmian"
+
+msgid "Pieces in the box added: %d, selected: %d"
+msgstr "Dodano odcinków z ramki: %d, zaznaczonych: %d"
+
+msgid "Pieces selected: %d"
+msgstr "Zaznaczonych odcinków: %d"

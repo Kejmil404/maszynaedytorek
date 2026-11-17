@@ -441,8 +441,9 @@ namespace
     // ground triangles overlapping an XZ rectangle (Min/Max are x,z). shapes hold the (legacy) terrain,
     // model instances at least ModelRadius large (if ModelsAsGround) the terrain tiles
     // Heightmap: the heightmap terrain is given as triangles too (for the ones which can ask the terrain for heights, it's a waste)
+    // Shapes: off, the models alone, for the ones which keep them apart from the terrain
     void gather_ground_triangles(glm::dvec2 const &Min, glm::dvec2 const &Max, bool const ModelsAsGround, float const ModelRadius, std::vector<world_triangle> &Out, bool const Skiproads = false,
-                                 bool const Heightmap = true)
+                                 bool const Heightmap = true, bool const Shapes = true)
     {
         auto const started = std::chrono::steady_clock::now();
         ++ground_question;
@@ -451,15 +452,18 @@ namespace
         auto const sections = simulation::Region->sections(glm::dvec3(center.x, 0.0, center.y), radius); // copy, the result is a scratchpad
         for (auto *section : sections)
         {
-            for (auto const &shape : section->m_shapes)
-                gather_shape_triangles(shape, Min, Max, Out, Skiproads);
+            if (Shapes)
+                for (auto const &shape : section->m_shapes)
+                    gather_shape_triangles(shape, Min, Max, Out, Skiproads);
             for (auto &cell : section->m_cells)
             {
                 double const r = cell.m_area.radius;
                 if (cell.m_area.center.x + r < Min.x || cell.m_area.center.x - r > Max.x || cell.m_area.center.z + r < Min.y || cell.m_area.center.z - r > Max.y)
                     continue;
-                for (auto const &shape : cell.m_shapesopaque)
-                    gather_shape_triangles(shape, Min, Max, Out);
+                // the roads are kept out of these too, for the ones which ask where to put a road: one stood on another before
+                if (Shapes)
+                    for (auto const &shape : cell.m_shapesopaque)
+                        gather_shape_triangles(shape, Min, Max, Out, Skiproads);
                 if (false == ModelsAsGround)
                     continue;
                 for (auto *instance : cell.m_instancesopaque)
@@ -508,7 +512,8 @@ namespace
     // gathering is what takes time, so a place asked about for the first time costs a single tile a frame instead of a stall
     struct ground_tile
     {
-        std::unique_ptr<triangle_grid> grid;
+        std::unique_ptr<triangle_grid> grid; // the terrain of the scenery, its shapes; the heightmap terrain is asked for itself
+        std::unique_ptr<triangle_grid> models; // the models large enough to be ground, as the terrain tiles of the older sceneries
         double gathered{0.0}; // when, on the clock of the user interface
         int used{0}; // frame it was last asked for
     };
@@ -616,7 +621,7 @@ editor_mode::~editor_mode()
 	editor_track::observe(nullptr);
 }
 
-std::vector<double> editor_mode::ground_heights(std::vector<glm::dvec3> const &Points, bool const Fresh, std::vector<char> *Found) const
+std::vector<double> editor_mode::ground_heights(std::vector<glm::dvec3> const &Points, bool const Fresh, std::vector<char> *Found, bool const TerrainFirst) const
 {
     std::vector<double> heights;
     heights.reserve(Points.size());
@@ -647,9 +652,13 @@ std::vector<double> editor_mode::ground_heights(std::vector<glm::dvec3> const &P
             glm::dvec2 const tilemin{key.first * ground_tile_size, key.second * ground_tile_size};
             glm::dvec2 const tilemax{tilemin + glm::dvec2{ground_tile_size}};
             std::vector<world_triangle> triangles;
-            // the same ground as the area fill uses, terrain tile models included
-            gather_ground_triangles(tilemin, tilemax, true, 50.0f, triangles, true);
+            // the same ground as the area fill uses, terrain tile models included, but apart: the heightmap terrain isn't
+            // gathered, it's asked for its heights as they are now, as a tile kept for half a minute would miss a change of it
+            gather_ground_triangles(tilemin, tilemax, false, 50.0f, triangles, true, false);
             tile.grid = std::make_unique<triangle_grid>(std::move(triangles), tilemin, tilemax);
+            std::vector<world_triangle> modeltriangles;
+            gather_ground_triangles(tilemin, tilemax, true, 50.0f, modeltriangles, true, false, false);
+            tile.models = std::make_unique<triangle_grid>(std::move(modeltriangles), tilemin, tilemax);
             tile.gathered = now;
             if (false == Fresh)
                 ground_tile_frame = frame;
@@ -669,6 +678,12 @@ std::vector<double> editor_mode::ground_heights(std::vector<glm::dvec3> const &P
                 y = h;
                 found = true;
             }
+        }
+        // the large models: over the terrain as before, or, asked for the terrain first, only where there's no terrain
+        if (double h{0.0}; (false == TerrainFirst || false == found) && tile.models != nullptr && tile.models->height_at(p.x, p.z, ceiling, h) && (!found || h > y))
+        {
+            y = h;
+            found = true;
         }
         if (found)
             heights[i] = y;
@@ -1730,6 +1745,9 @@ bool editor_mode::update()
         finish_model_box();
     draw_model_box();
     draw_brush_erase();
+    if (m_roadtool.box.active && false == ImGui::GetIO().MouseDown[0])
+        road_box_finish();
+    draw_road_box();
     render_context_menu();
     steps.step("windows");
 
@@ -6503,6 +6521,27 @@ void editor_mode::render_gizmo_options()
         if (m_gizmo_snap < 0.0f)
             m_gizmo_snap = 0.0f;
     }
+    // the scale of the whole selection: the models together, with the gizmo or by a factor typed in
+    if (m_gizmo_op == gizmo_operation::scale && ui()->mode() != nodebank_panel::TRACK && selected_nodes().size() > 1)
+    {
+        ImGui::Checkbox(STR_C("Scale the spacing too"), &m_scale_spread);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", STR_C("The selected models move away from the one held, or closer to it, as if they were one thing; off, each grows where it stands"));
+        ImGui::SetNextItemWidth(120.0f);
+        ImGui::InputFloat(STR_C("Factor##selscale"), &m_scale_factor, 0.05f, 0.25f, "x%.2f");
+        m_scale_factor = std::clamp(m_scale_factor, 0.01f, 100.0f);
+        ImGui::SameLine();
+        if (ImGui::Button(STR_C("Scale the selected")) && m_scale_factor != 1.0f)
+        {
+            selection_snapshots(EditorSnapshot::Action::Scale);
+            auto *held{dynamic_cast<TAnimModel *>(m_node)};
+            auto const pivot{m_node != nullptr ? m_node->location() : glm::dvec3{0.0}};
+            if (held != nullptr)
+                held->Scale(held->Scale() * m_scale_factor);
+            selection_scale(glm::vec3{m_scale_factor}, pivot);
+            ui()->set_status(format(STR_C("%zu models scaled x%.2f; Ctrl+Z takes it back"), selected_nodes().size(), m_scale_factor));
+        }
+    }
     if (m_instance != 0)
     {
         auto const located = editor_includes::parameter_with_role(m_include.info, "pos.x") != 0 || editor_includes::parameter_with_role(m_include.info, "pos.y") != 0 ||
@@ -6653,7 +6692,11 @@ void editor_mode::render_gizmo()
         }
         else if (operation == ImGuizmo::SCALE && model)
         {
-            model->Scale(glm::vec3(newscale[0], newscale[1], newscale[2]));
+            glm::vec3 const scaled{newscale[0], newscale[1], newscale[2]};
+            // the others of the selection by as much as the one held grew in this frame, each from its own scale
+            auto const factor{glm::vec3{scaled.x / std::max(scalevec.x, 1e-4f), scaled.y / std::max(scalevec.y, 1e-4f), scaled.z / std::max(scalevec.z, 1e-4f)}};
+            model->Scale(scaled);
+            selection_scale(factor, model->location());
         }
         else
         {
@@ -7663,12 +7706,23 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
         }
         if (is_press(Action))
         {
+            // Shift+drag with the Select tool: a box over the pieces; let go without a drag it's the click of Shift+LMB
+            auto const boxed{(Mods & GLFW_MOD_SHIFT) != 0 && m_roadtool.tool == 0 && false == ImGui::GetIO().WantCaptureMouse};
+            if (boxed)
+                road_box_start();
+            // the press of this box, 0 for a press without one
+            auto const press{boxed ? m_roadtool.box.press : 0u};
             // NOTE: the pick is resolved a few frames later, by then it's known whether the press was meant for the UI
-            GfxRenderer->Pick_Node_Callback([this](scene::basic_node * /*node*/) {
+            GfxRenderer->Pick_Node_Callback([this, press](scene::basic_node * /*node*/) {
+                // the press turned out to be the drag of a box, which selected the pieces itself
+                if (m_roadtool.box.dragged == press && press != 0)
+                    return;
                 if (viewport_click())
                     road_click();
             });
         }
+        else
+            road_box_finish();
         m_input.mouse.button(Button, Action);
         return;
     }

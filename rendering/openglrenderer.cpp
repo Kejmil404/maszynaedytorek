@@ -1042,12 +1042,21 @@ opengl_renderer::setup_pass( renderpass_config &Config, rendermode const Mode, f
             // projection
 		    auto const zfar  = ( Zfar  > 1.f ? Zfar : Config.draw_range * Zfar );
 		    auto const znear = ( Znear > 1.f ? Znear : Znear > 0.f ? Znear * zfar : 0.1f * Global.ZoomFactor);
-            camera.projection() *=
-                glm::perspective(
-                    glm::radians( Global.FieldOfView / Global.ZoomFactor ),
-                    std::max( 1.f, (float)Global.window_size.x ) / std::max( 1.f, (float)Global.window_size.y ),
-                    znear,
-                    zfar );
+            auto const aspect{ std::max( 1.f, (float)Global.window_size.x ) / std::max( 1.f, (float)Global.window_size.y ) };
+            if( EditorModeFlag && Global.EditorOrtho ) {
+                // the top view of the editor, as the other renderer draws it: without it the editor zoomed a view it didn't show
+                auto const height{ Global.EditorOrthoExtent };
+                auto const depth{ std::max( zfar, editor_ortho_reach() ) };
+                camera.projection() *= glm::ortho( -height * aspect, height * aspect, -height, height, -depth, depth );
+            }
+            else {
+                camera.projection() *=
+                    glm::perspective(
+                        glm::radians( Global.FieldOfView / Global.ZoomFactor ),
+                        aspect,
+                        znear,
+                        zfar );
+            }
 /*
             m_sunandviewangle =
                 glm::dot(

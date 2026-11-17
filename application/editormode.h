@@ -65,6 +65,7 @@ http://mozilla.org/MPL/2.0/.
 #include <set>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 class TAnimModel;
@@ -408,6 +409,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool reshape{false}; // the formations of the tracks laid anew once the chunks waiting are made, as the tracks are put onto the terrain
 		bool unfitted{false}; // the tracks put onto the terrain are only the ones whose grade line isn't fitted yet
 		bool redo_hand{false}; // all anew takes the grade lines edited by hand too
+		// a run for the selected tracks alone: the others stay as they are and the selected ones meet them. set for the next run
+		// by nmt_auto_selected, taken by nmt_auto_start, so any other run is one for all the tracks
+		std::unordered_set<TTrack const *> only;
+		std::unordered_set<TTrack const *> only_next;
 		std::unordered_set<TTrack const *> stayed; // the tracks this putting onto the terrain leaves as they are
 		double grow_time{-10.0};
 		double slope{1.5};
@@ -716,6 +721,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	std::size_t nmt_level_turntables();
 	// Unfitted: only the tracks whose grade line isn't fitted yet, the scenery left at its height
 	void nmt_auto_start(bool const Unfitted = false);
+	// the selected tracks onto the terrain model, all of them anew, the other tracks staying as they are
+	void nmt_auto_selected();
 	void nmt_auto_step();
 	// the grade line of the line of tracks through the track fitted to the terrain model and applied; false if it couldn't be.
 	// The line runs over the tracks not Fitted, the ones fitted stay as they are and the line meets them. Where the model falls
@@ -1133,7 +1140,12 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool m_gizmo_using{false};                                   // tracks an ongoing drag, so a single undo snapshot is taken per drag
 	bool m_gizmo_local{false};                                   // manipulate in the object's local space instead of world space
 	gizmo_operation m_gizmo_op{gizmo_operation::translate};      // current transform mode (translate/rotate/scale)
-	float m_gizmo_snap{1.0f};                                    // translation snap step (metres) applied while Ctrl is held
+	bool m_scale_spread{false}; // scaling the selection moves its models apart or together too
+	float m_scale_factor{1.2f}; // the factor the button scales the selection by
+	// the models of the selection other than the one held scaled by Factor, each from its own scale; with m_scale_spread their
+	// places too, from Pivot
+	void selection_scale(glm::vec3 const &Factor, glm::dvec3 const &Pivot);
+		float m_gizmo_snap{1.0f};                                    // translation snap step (metres) applied while Ctrl is held
 
 	TTrack *selected_track() const override;
 	bool track_editing() const override;
@@ -3492,6 +3504,19 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool lanes{true}; // lanes of the roads are drawn as trajectories
 		int tool{0}; // 0: select, 1: build, 2: place
 		road_node *selected{nullptr};
+		std::vector<road_node *> many; // the pieces selected along with it, Shift+LMB or Shift+drag: changed and deleted with it
+		// Shift+drag with the Select tool: a box over the pieces; a press let go without a drag is the click of Shift+LMB
+		struct road_box
+		{
+			bool active{false};
+			glm::vec2 from{0.f};
+			std::uint32_t press{0};
+			std::uint32_t dragged{0};
+			road_node *selected{nullptr}; // the selection before the press, taken back if its pick came before the box ended
+			std::vector<road_node *> many;
+			std::vector<glm::dvec3> points;
+		};
+		road_box box;
 		junction_node *junction{nullptr}; // selected junction
 		roadpoint_node *marker{nullptr}; // selected level crossing or traffic point
 		std::vector<glm::dvec3> points; // selected points where the pieces meet or end
@@ -3566,6 +3591,15 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void road_select(road_node *Road);
 	void junction_select(junction_node *Junction);
 	void road_apply();
+	// the change made in the window to the selected piece made to the other selected pieces too, only what was changed
+	void road_apply_many();
+	// a piece added to the selected ones, or taken out of them
+	void road_toggle(road_node *Road);
+	// the selected pieces: the one in the window, then the others
+	std::vector<road_node *> road_selection() const;
+	void road_box_start();
+	void road_box_finish();
+	void draw_road_box() const;
 	bool road_delete();
 	bool road_split();
 	void road_cancel();
@@ -3593,7 +3627,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void road_profile(std::vector<segment_data> &Pieces, double const *Firstgrade, double const *Lastgrade, bool const Fresh);
 	// height of the ground under each of the points, with the roads not taken for the ground. a point with nothing under it keeps its height
 	// Found: set for the points which have the ground under them
-	std::vector<double> ground_heights(std::vector<glm::dvec3> const &Points, bool const Fresh, std::vector<char> *Found = nullptr) const;
+	// TerrainFirst: the large models count as ground only where there's no terrain, as the roads want it: a road beside a
+	// station building or under a viaduct went up onto it
+	std::vector<double> ground_heights(std::vector<glm::dvec3> const &Points, bool const Fresh, std::vector<char> *Found = nullptr, bool const TerrainFirst = false) const;
 	void push_road_snapshot(editor_road::record Record);
 	void restore_road_snapshot(EditorSnapshot const &Snapshot, std::vector<EditorSnapshot> &Opposite, bool const Undo);
 	road_tool m_roadtool;

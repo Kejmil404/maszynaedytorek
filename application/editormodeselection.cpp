@@ -371,6 +371,25 @@ void editor_mode::selection_follow(glm::dvec3 const &Moved, glm::vec3 const &Tur
 	}
 }
 
+void editor_mode::selection_scale(glm::vec3 const &Factor, glm::dvec3 const &Pivot)
+{
+	if (Factor == glm::vec3{1.0f})
+		return;
+	// the spacing grows on the ground by the factor across, the heights of the places stay
+	auto const across{static_cast<double>(0.5f * (Factor.x + Factor.z))};
+	for (auto *node : selected_nodes())
+	{
+		auto *model{dynamic_cast<TAnimModel *>(node)};
+		if (node == m_node || model == nullptr)
+			continue;
+		model->Scale(glm::max(model->Scale() * Factor, glm::vec3{0.001f}));
+		if (false == m_scale_spread)
+			continue;
+		auto const offset{node->location() - Pivot};
+		m_editor.translate(node, glm::dvec3{Pivot.x + offset.x * across, node->location().y, Pivot.z + offset.z * across}, true);
+	}
+}
+
 glm::dvec3 editor_mode::cursor_ground()
 {
 	return placement_on_ground(Camera.Pos + clamp_mouse_offset_to_max(GfxRenderer->Mouse_Position()));
