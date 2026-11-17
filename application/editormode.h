@@ -31,6 +31,7 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorTerrainStreamer.hpp"
 #include "editor/editorOrthophoto.hpp"
 #include "editor/editorNmt.hpp"
+#include "editor/editorDem.hpp"
 #include "editor/editorGeoMap.hpp"
 #include "editor/editorTrack.hpp"
 #include "editor/editorTrackTrace.hpp"
@@ -506,6 +507,41 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	editor_nmt m_nmt;
 	nmt_state m_nmt_state;
 	editor_map m_nmt_map;
+	// a terrain model from a file of the user (.asc, .xyz, .tif) put into the terrain of the scenery (editormodedem.cpp). only the
+	// heights of the chunks change: the scenery stays as any other one, for every build of the simulator
+	struct dem_import_state
+	{
+		struct loaded
+		{
+			std::shared_ptr<editor_dem::grid const> grid;
+			std::string error;
+		};
+		std::array<char, 1024> path{};
+		int axes{0}; // editor_dem::axes
+		double feather{30.0}; // m, the band along the edges of the file over which its heights blend into the terrain
+		double offset{0.0}; // m, added to the heights of the file
+		bool match{true}; // the file moved up or down to meet the terrain along its edges
+		bool finer{true}; // the chunks given the point spacing of the file where theirs is coarser
+		bool create{true}; // chunks made where the file reaches beyond the terrain
+		std::future<loaded> loading;
+		std::shared_ptr<editor_dem::grid const> grid; // the file read, to be put into the terrain
+		std::string file; // of the grid read
+		std::optional<double> seam; // m, how much higher the terrain is than the file along its edges, on the median
+		std::size_t seam_points{0};
+		std::string status;
+		std::string error;
+	};
+	dem_import_state m_dem_import;
+	void render_dem_import_ui();
+	void dem_import_read();
+	void dem_import_poll();
+	void dem_import_measure();
+	void dem_import_apply();
+	// the chunk given the point spacing of the file, if its own is coarser and the import is to do it; true if it changed
+	bool dem_import_spacing(heightmap::chunk_key const &Key, float const Spacing);
+	void render_dem_import_grid();
+	// the rectangle (x, z) of the scenery the grid of the file covers
+	std::pair<glm::dvec2, glm::dvec2> dem_import_area(editor_dem::grid const &Grid) const;
 	std::vector<nmt_place> nmt_track_places(double const Step) const override;
 	void nmt_locate() override;
 	void nmt_fit();

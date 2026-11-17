@@ -2528,6 +2528,8 @@ void editor_mode::render_nmt_ui()
 		}
 		ImGui::TreePop();
 	}
+	// a sheet of the model from a file, laid into the terrain there is (editormodedem.cpp)
+	render_dem_import_ui();
 	state.band = std::clamp(state.band, 50.0, 3000.0);
 	ImGui::Spacing();
 	// while the work goes on the bar above tells how far it got

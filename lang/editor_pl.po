@@ -14236,3 +14236,146 @@ msgstr "Kursor rysowany w obrazie (stream)"
 
 msgid "The pointer drawn by the editor into the frame instead of the one of the system: seen by those watching a stream\nor a recording of the window (Discord, OBS, the capture of the system), which leave the system pointer out"
 msgstr "Wskaźnik rysowany przez edytor w klatce zamiast systemowego: widać go w streamie\ni w nagraniu okna (Discord, OBS, przechwytywanie systemowe), które pomijają wskaźnik systemu"
+
+# scenery editor: terrain model from a file
+
+msgid "Terrain model from a file"
+msgstr "Model terenu z pliku"
+
+msgid "A sheet of the terrain model downloaded from geoportal.gov.pl (.asc, .xyz, .tif in PUWG 1992) laid into the terrain there is; its edges blend into it"
+msgstr "Arkusz modelu terenu pobrany z geoportal.gov.pl (.asc, .xyz, .tif w PUWG 1992) wstawiony w istniejący teren; jego krawędzie płynnie się z nim łączą"
+
+msgid "Path of the file"
+msgstr "Ścieżka do pliku"
+
+msgid "The whole path of the file, as copied from the file manager"
+msgstr "Pełna ścieżka do pliku, np. skopiowana z menedżera plików"
+
+msgid "Coordinates of the file"
+msgstr "Współrzędne pliku"
+
+msgid "By the place of the scenery"
+msgstr "Według położenia scenerii"
+
+msgid "As written: easting, northing"
+msgstr "Jak w pliku: wschód, północ"
+
+msgid "Swapped: northing (X), easting (Y)"
+msgstr "Zamienione: północ (X), wschód (Y)"
+
+msgid "The Polish maps name the northing X, so some files give it first; by the place of the scenery the one is taken which lies nearer it"
+msgstr "Polskie mapy nazywają współrzędną północną X, więc część plików podaje ją jako pierwszą; według położenia scenerii wybierany jest wariant leżący bliżej niej"
+
+msgid "Read the file"
+msgstr "Wczytaj plik"
+
+msgid "Reading the file..."
+msgstr "Wczytywanie pliku..."
+
+msgid "Give the path of the file first"
+msgstr "Najpierw podaj ścieżkę do pliku"
+
+msgid "%s, %d x %d points of %.2f m, %.0f x %.0f m"
+msgstr "%s, %d x %d punktów co %.2f m, %.0f x %.0f m"
+
+msgid "ASCII grid"
+msgstr "siatka ASCII"
+
+msgid "grid of points"
+msgstr "siatka punktów"
+
+msgid "Heights from %.2f to %.2f m"
+msgstr "Wysokości od %.2f do %.2f m"
+
+msgid "The coordinates of the file were read the other way round"
+msgstr "Współrzędne pliku odczytano w zamienionej kolejności"
+
+msgid "In the scenery: x from %.0f to %.0f, z from %.0f to %.0f"
+msgstr "W scenerii: x od %.0f do %.0f, z od %.0f do %.0f"
+
+msgid "The file lies more than 100 km from the scenery: check its location and the coordinates of the file"
+msgstr "Plik leży ponad 100 km od scenerii: sprawdź jej położenie i współrzędne pliku"
+
+msgid "Along its edges the terrain is %+.2f m over the file (%zu points)"
+msgstr "Wzdłuż krawędzi pliku teren jest %+.2f m nad nim (%zu punktów)"
+
+msgid "There's no terrain along the edges of the file to compare it with"
+msgstr "Wzdłuż krawędzi pliku nie ma terenu, z którym można go porównać"
+
+msgid "Edges blended over (m)"
+msgstr "Wygładzanie krawędzi (m)"
+
+msgid "Within this band along the edges of the file its heights go over smoothly into the terrain there is; 0: the file as it is up to its edge"
+msgstr "W tym pasie wzdłuż krawędzi pliku jego wysokości płynnie przechodzą w istniejący teren; 0: plik bez zmian aż do krawędzi"
+
+msgid "Height offset of the file (m)"
+msgstr "Przesunięcie wysokości pliku (m)"
+
+msgid "Added to the heights of the file, as between the height systems Kronsztadt 86 and EVRF2007, or for a scenery built at heights of its own"
+msgstr "Dodawane do wysokości z pliku, np. między układami Kronsztadt 86 i EVRF2007 albo dla scenerii zbudowanej na własnych wysokościach"
+
+msgid "Meet the terrain along the edges"
+msgstr "Dopasuj do terenu na krawędziach"
+
+msgid "The whole file moved up or down by how much the terrain along its edges is higher, so there's no step there"
+msgstr "Cały plik przesuwany w górę lub w dół o różnicę względem terenu na jego krawędziach, żeby nie było tam progu"
+
+msgid "Point spacing of the file"
+msgstr "Rozdzielczość pliku"
+
+msgid "The chunks under the file get its point spacing where theirs is coarser, so its detail isn't lost"
+msgstr "Kawałki terenu pod plikiem dostają jego rozdzielczość, jeśli ich własna jest rzadsza, żeby nie tracić szczegółów"
+
+msgid "Chunks where there are none"
+msgstr "Nowe kawałki terenu"
+
+msgid "Where the file reaches beyond the terrain, chunks are made of it; off, only the chunks there are change"
+msgstr "Tam, gdzie plik wychodzi poza teren, powstają z niego nowe kawałki; wyłączone: zmieniają się tylko istniejące"
+
+msgid "Put into the terrain"
+msgstr "Wstaw w teren"
+
+msgid "The heights of the chunks under the file change, in one step of the history; the tracks keep their formations"
+msgstr "Zmieniają się wysokości kawałków terenu pod plikiem, jako jeden krok historii; tory zachowują swoje podtorza"
+
+msgid "Compare again"
+msgstr "Porównaj ponownie"
+
+msgid "Forget the file"
+msgstr "Zapomnij plik"
+
+msgid "%zu points of the terrain changed, %zu chunks made, %zu made finer; the heights of the file moved by %+.2f m"
+msgstr "Zmieniono %zu punktów terenu, utworzono %zu kawałków, zagęszczono %zu; wysokości pliku przesunięte o %+.2f m"
+
+msgid "Wait until the terrain model of the service is in"
+msgstr "Poczekaj, aż model terenu z usługi zostanie wczytany"
+
+msgid "The file can't be opened"
+msgstr "Nie można otworzyć pliku"
+
+msgid "The header of the ASCII grid can't be read"
+msgstr "Nie można odczytać nagłówka siatki ASCII"
+
+msgid "The ASCII grid has no ncols, nrows or cellsize"
+msgstr "Siatka ASCII nie ma ncols, nrows albo cellsize"
+
+msgid "The grid of the file is too big"
+msgstr "Siatka w pliku jest za duża"
+
+msgid "The ASCII grid ends before its last value"
+msgstr "Siatka ASCII kończy się przed ostatnią wartością"
+
+msgid "A value of the ASCII grid can't be read"
+msgstr "Nie można odczytać wartości siatki ASCII"
+
+msgid "The file has no points of three numbers: x, y and the height"
+msgstr "Plik nie zawiera punktów z trzech liczb: x, y i wysokość"
+
+msgid "The points of the file don't lie on a grid of square cells"
+msgstr "Punkty z pliku nie leżą na siatce kwadratowych oczek"
+
+msgid "The GeoTIFF isn't one band of 32-bit floats, not compressed, of at most 8192 pixels a side"
+msgstr "GeoTIFF nie jest jednym kanałem 32-bitowych liczb zmiennoprzecinkowych bez kompresji, o boku najwyżej 8192 pikseli"
+
+msgid "The file has no heights, only points without data"
+msgstr "Plik nie zawiera wysokości, tylko punkty bez danych"

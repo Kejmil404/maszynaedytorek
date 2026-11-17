@@ -31,6 +31,7 @@ add_executable(${UNIT_TESTS_NAME}
 	"${CMAKE_SOURCE_DIR}/editor/editorSwitchCurve.cpp"
 	# and the fouling points of the switches, widened in the curves as the gauge is
 	"${CMAKE_SOURCE_DIR}/editor/editorGauge.cpp"
+	"${CMAKE_SOURCE_DIR}/editor/editorDem.cpp"
 	"${CMAKE_SOURCE_DIR}/editor/editorFouling.cpp"
 	${UNIT_TEST_CASES})
 
