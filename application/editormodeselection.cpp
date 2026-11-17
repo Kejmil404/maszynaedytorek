@@ -137,6 +137,70 @@ void editor_mode::draw_selection_overlay()
 	}
 }
 
+void editor_mode::start_model_box()
+{
+	auto &box{m_model_box};
+	auto const &io{ImGui::GetIO()};
+	++box.press;
+	box.active = true;
+	box.from = {io.MousePos.x, io.MousePos.y};
+	box.node = m_node;
+	box.selection = m_selection;
+}
+
+void editor_mode::finish_model_box()
+{
+	auto &box{m_model_box};
+	if (false == box.active)
+		return;
+	box.active = false;
+	auto const &io{ImGui::GetIO()};
+	glm::vec2 const to{io.MousePos.x, io.MousePos.y};
+	// a click: the pick of the press adds the model under the cursor or takes it out
+	if (glm::length(to - box.from) < 6.0f || ui()->mode() != nodebank_panel::MODIFY)
+		return;
+	box.dragged = box.press;
+	// the pick of the press may have come already: the selection goes back to what it was before it
+	m_node = box.node;
+	m_selection = box.selection;
+	std::erase_if(m_selection, [](scene::basic_node const *Node) { return Node == nullptr; });
+	glm::vec2 const low{glm::min(box.from, to)};
+	glm::vec2 const high{glm::max(box.from, to)};
+	screen_projection const projection;
+	glm::dvec3 const camera{Global.pCamera.Pos};
+	auto const reach{static_cast<double>(kMaxPlacementDistance)};
+	auto const chosen{selected_nodes()};
+	std::size_t added{0};
+	for (auto *model : simulation::Instances.sequence())
+	{
+		// as with a click: the models within reach, of layers which can be edited, not placed by a template
+		if (model == nullptr || false == model->visible() || model->from_template() || false == scene::Layers.editable(model) || glm::distance(model->location(), camera) > reach)
+			continue;
+		if (ImVec2 point; false == projection.project(model->location(), point) || point.x < low.x || point.x > high.x || point.y < low.y || point.y > high.y)
+			continue;
+		if (std::ranges::find(chosen, model) != chosen.end() || std::ranges::find(m_selection, model) != m_selection.end() || model == m_node)
+			continue;
+		select_node(model, true);
+		++added;
+	}
+	ui()->set_node(m_node);
+	auto const count{selected_nodes().size()};
+	ui()->set_status(format(STR_C("%zu models in the box added, %zu selected; Del deletes them, the gizmo moves them all, End drops them to the ground"), added, count));
+}
+
+void editor_mode::draw_model_box() const
+{
+	if (false == m_model_box.active || ui()->mode() != nodebank_panel::MODIFY)
+		return;
+	auto const &io{ImGui::GetIO()};
+	ImVec2 const from{m_model_box.from.x, m_model_box.from.y};
+	if (glm::length(glm::vec2{io.MousePos.x, io.MousePos.y} - m_model_box.from) < 6.0f)
+		return;
+	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
+	drawlist->AddRectFilled(from, io.MousePos, IM_COL32(255, 160, 40, 40));
+	drawlist->AddRect(from, io.MousePos, IM_COL32(255, 160, 40, 220), 0.0f, 0, 1.5f);
+}
+
 void editor_mode::selection_snapshots(EditorSnapshot::Action const Action)
 {
 	// one step of the history for all of them

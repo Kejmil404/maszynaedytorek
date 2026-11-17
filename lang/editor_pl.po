@@ -14379,3 +14379,14 @@ msgstr "GeoTIFF nie jest jednym kanałem 32-bitowych liczb zmiennoprzecinkowych 
 
 msgid "The file has no heights, only points without data"
 msgstr "Plik nie zawiera wysokości, tylko punkty bez danych"
+
+# scenery editor: the models selected in a box
+
+msgid "Add the models in a box to the selection"
+msgstr "Dodaj do zaznaczenia modele w ramce"
+
+msgid "%zu models in the box added, %zu selected; Del deletes them, the gizmo moves them all, End drops them to the ground"
+msgstr "Dodano %zu modeli z ramki, zaznaczonych: %zu; Del je usuwa, gizmo przesuwa wszystkie, End opuszcza je na ziemię"
+
+msgid "Shift+drag"
+msgstr "Shift+przeciągnij"

@@ -1719,6 +1719,10 @@ bool editor_mode::update()
     render_switch_designer();
     render_environment_window();
     draw_selection_overlay();
+    // the button let go over a panel: its release went to the panel
+    if (m_model_box.active && false == ImGui::GetIO().MouseDown[0])
+        finish_model_box();
+    draw_model_box();
     render_context_menu();
     steps.step("windows");
 
@@ -6315,6 +6319,7 @@ void editor_mode::render_shortcuts_window()
 	     {{"1 2 3 4 5", "Select, insert, brush, area fill, copy to bank"},
 	      {"LMB", "Select a model, or place one in the insert and brush modes"},
 	      {"Shift+LMB", "Add a model to the selection, or take it out"},
+	      {"Shift+drag", "Add the models in a box to the selection"},
 	      {"Ctrl+RMB", "Menu of the selection at the cursor"},
 	      {"Ctrl+C / Ctrl+V", "Copy the selected models / paste them at the cursor"},
 	      {"Ctrl+G / Ctrl+Shift+G", "Group the selected models / take their group apart"},
@@ -7701,10 +7706,17 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
             // so the callback mustn't depend on the button still being held
             // Shift+LMB adds a model to the selection, or takes it out
             auto const additive{mode == nodebank_panel::MODIFY && (Mods & GLFW_MOD_SHIFT) != 0};
+            // Shift+drag: a box over the models; let go without a drag it's the click of Shift+LMB
+            if (additive)
+                start_model_box();
+            auto const press{m_model_box.press};
             GfxRenderer->Pick_Node_Callback(
-                [this, mode, rotation_mode, fixed_rotation_value, additive](scene::basic_node *node) {
+                [this, mode, rotation_mode, fixed_rotation_value, additive, press](scene::basic_node *node) {
                     // the press turned out to be meant for the UI
                     if (!viewport_click())
+                        return;
+                    // the press turned out to be the drag of a box, which selected the models itself
+                    if (additive && press == m_model_box.dragged)
                         return;
 
                     auto *const previous{m_node};
@@ -7800,6 +7812,7 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
             {
                 mouseHold = false;
                 finish_track_box();
+                finish_model_box();
                 point_drag_finish();
                 m_handle_drag = {};
                 sweep_release();

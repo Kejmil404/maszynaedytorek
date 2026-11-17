@@ -313,6 +313,21 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	std::vector<scene::basic_node *> selection_with_groups() const; // and the other models of their groups
 	void select_node(scene::basic_node *Node, bool const Additive);
 	void draw_selection_overlay();
+	// Shift+drag in the surroundings: the models in the box on the screen join the selection, as the tracks do. a press without a
+	// drag stays the click of Shift+LMB, which adds a model or takes it out
+	struct model_box
+	{
+		bool active{false};
+		glm::vec2 from{0.f};
+		std::uint32_t press{0}; // counts the presses, so the pick of a press which turned out to be a drag is let go
+		std::uint32_t dragged{0}; // the press which was a drag
+		scene::basic_node *node{nullptr}; // the selection before the press, taken back if its pick came before the box ended
+		std::vector<scene::basic_node *> selection;
+	};
+	model_box m_model_box;
+	void start_model_box();
+	void finish_model_box();
+	void draw_model_box() const;
 	// the other models of the selection follow m_node moved or turned by the gizmo
 	void selection_snapshots(EditorSnapshot::Action const Action);
 	void selection_follow(glm::dvec3 const &Moved, glm::vec3 const &Turned, glm::dvec3 const &Pivot);
