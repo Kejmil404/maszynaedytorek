@@ -14425,3 +14425,20 @@ msgstr "Filtr pędzla nie ma modelu: zaznacz szablon w banku albo zestaw"
 
 msgid "%zu models taken away in this stroke; Ctrl+Z brings them all back"
 msgstr "Usunięto %zu modeli w tym pociągnięciu; Ctrl+Z przywraca wszystkie"
+
+# scenery editor: the start camera
+
+msgid "Start camera here"
+msgstr "Kamera startowa tutaj"
+
+msgid "The free camera of the simulator starts where the camera is now, looking the same way: saved with the scenery as its camera directive, which every build reads"
+msgstr "Wolna kamera symulatora startuje tam, gdzie jest teraz kamera, patrząc w tę samą stronę: zapisywane w scenerii jako wpis camera, który czyta każdy build"
+
+msgid "Leave the editor at the camera"
+msgstr "Wyjście z edytora w miejscu kamery"
+
+msgid "F11 out of the editor: the free camera goes on from where the editor's camera is, not from where it was before the editor"
+msgstr "F11 z edytora: wolna kamera zostaje tam, gdzie kamera edytora, a nie tam, gdzie była przed wejściem do edytora"
+
+msgid "The start camera is set where the camera is; it goes into the scenery with the next save (Ctrl+S)"
+msgstr "Kamera startowa ustawiona w miejscu kamery; trafi do scenerii przy następnym zapisie (Ctrl+S)"

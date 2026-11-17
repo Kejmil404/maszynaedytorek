@@ -4244,6 +4244,13 @@ void editor_mode::render_view_menu()
         toggle_ortho();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("The view straight down without perspective, as on a map; again for the camera as it was"));
+    if (ImGui::MenuItem(STR_C("Start camera here"), nullptr, false, false == scene::Layers.empty() && false == Global.EditorOrtho))
+        set_start_camera();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("%s", STR_C("The free camera of the simulator starts where the camera is now, looking the same way: saved with the scenery as its camera directive, which every build reads"));
+    ImGui::MenuItem(STR_C("Leave the editor at the camera"), "F11", &m_exit_at_camera);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("F11 out of the editor: the free camera goes on from where the editor's camera is, not from where it was before the editor"));
     if (ImGui::BeginMenu(STR_C("Tracks in the top view")))
     {
         render_top_tracks_choice(false);
@@ -7097,6 +7104,8 @@ void editor_mode::exit()
     Global.ControlPicking = m_statebackup.picking;
     FreeFlyModeFlag = m_statebackup.freefly;
     Global.pCamera = m_statebackup.camera;
+    if (m_exit_at_camera)
+        Global.editor_exit_camera = std::make_pair(glm::dvec3{Camera.Pos}, glm::vec3{Camera.Angle});
 
     commit_track_drag(true);
     m_track_gizmo_using = false;

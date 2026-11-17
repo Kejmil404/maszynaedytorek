@@ -330,6 +330,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void start_model_box();
 	void finish_model_box();
 	void draw_model_box() const;
+	// the start camera of the scenery (its camera directive, number 0) set to the camera of the editor, saved with the scenery
+	void set_start_camera();
+	bool m_exit_at_camera{true}; // F11: the free camera of the driver's view goes on from the camera of the editor
 	// the brush which takes models away (Erase models in the options of the brush): a stroke is one step of the history
 	struct brush_erase_state
 	{

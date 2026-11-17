@@ -629,6 +629,16 @@ bool driver_mode::is_command_processor() const
 
 void driver_mode::update_camera(double const Deltatime)
 {
+	// left the editor: the free camera goes on from where the editor's camera was. in a vehicle it stays there
+	if (Global.editor_exit_camera.has_value())
+	{
+		if (FreeFlyModeFlag && Camera.m_owner == nullptr)
+		{
+			Camera.Pos = Global.editor_exit_camera->first;
+			Camera.Angle = Global.editor_exit_camera->second;
+		}
+		Global.editor_exit_camera.reset();
+	}
 
 	auto *controlled = simulation::Train ? simulation::Train->Dynamic() : nullptr;
 

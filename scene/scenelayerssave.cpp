@@ -1312,7 +1312,8 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 		}
 		for (auto const &text : marking.second)
 		{
-			markedtext[target].push_back(mark + ' ' + text);
+			// the start camera is a directive with the mark after it, the others are comments after their marks
+			markedtext[target].push_back(mark == camera_mark ? text + ' ' + mark : mark + ' ' + text);
 		}
 	}
 

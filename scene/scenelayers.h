@@ -11,6 +11,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "scene/scenenode.h"
 
+#include <string_view>
 #include <filesystem>
 #include <limits>
 #include <map>
@@ -18,6 +19,10 @@ http://mozilla.org/MPL/2.0/.
 
 namespace scene
 {
+
+// the mark of the start camera set in the editor. unlike the other marks of the editor it ends its line, after a real directive
+// "camera <x> <y> <z> <pitch> <yaw> <roll> 0 endcamera", which every build reads; the editor knows the line by it and saves it anew
+inline constexpr std::string_view camera_mark{"//$v"};
 
 // kinds of scenery items a layer keeps count of
 enum class layer_item

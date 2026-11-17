@@ -867,6 +867,22 @@ std::array<moved_mark, 3> const movedmarks{{
     {"//$f", "//$t", "fitted", "# the tracks whose grade line was fitted"},
 }};
 
+// the directive of the line ended with the mark of the start camera, or nothing
+std::string camera_line(std::string_view Line)
+{
+	while (false == Line.empty() && (Line.back() == '\n' || Line.back() == '\r' || Line.back() == ' ' || Line.back() == '\t'))
+		Line.remove_suffix(1);
+	if (false == Line.ends_with(camera_mark))
+		return {};
+	Line.remove_suffix(camera_mark.size());
+	Line.remove_prefix(std::min(Line.size(), Line.find_first_not_of(" \t")));
+	while (false == Line.empty() && (Line.back() == ' ' || Line.back() == '\t'))
+		Line.remove_suffix(1);
+	if (false == Line.starts_with("camera ") || false == Line.ends_with("endcamera"))
+		return {};
+	return std::string{Line};
+}
+
 std::string_view first_word(std::string const &Text)
 {
 	return std::string_view{Text}.substr(0, Text.find_first_of(" \t"));
@@ -938,6 +954,12 @@ void node_layers::scan(layer_handle const Layer)
 			Text.erase(0, Text.find_first_not_of(" \t"));
 			return true;
 		};
+		if (auto camera{first < end ? camera_line(std::string_view{content}.substr(first, end - first)) : std::string{}}; false == camera.empty())
+		{
+			m_marked[Layer].push_back({std::string{camera_mark}, {static_cast<std::streamoff>(begin), static_cast<std::streamoff>(end)}, std::move(camera), false});
+			begin = end;
+			continue;
+		}
 		if (first < end)
 		{
 			std::string text;

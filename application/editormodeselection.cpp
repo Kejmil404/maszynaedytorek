@@ -22,6 +22,7 @@ http://mozilla.org/MPL/2.0/.
 #include "scene/scenenodegroups.h"
 #include "simulation/simulation.h"
 #include "utilities/Globals.h"
+#include "utilities/Logs.h"
 #include "utilities/translation.h"
 #include "imgui/imgui.h"
 
@@ -291,6 +292,19 @@ void editor_mode::brush_erase()
 	}
 	if (false == taken.empty())
 		ui()->set_status(format(STR_C("%zu models taken away in this stroke; Ctrl+Z brings them all back"), state.erased));
+}
+
+void editor_mode::set_start_camera()
+{
+	glm::dvec3 const position{Camera.Pos};
+	glm::vec3 const angles{Camera.Angle};
+	// the directive takes degrees; the camera of number 0 is the one the free camera starts with
+	auto const directive{format("camera %.3f %.3f %.3f %.3f %.3f %.3f 0 endcamera", position.x, position.y, position.z, glm::degrees(angles.x), glm::degrees(angles.y), glm::degrees(angles.z))};
+	scene::Layers.mark(scene::layer_handle{1}, std::string{scene::camera_mark}, {directive});
+	Global.FreeCameraInit[0] = position;
+	Global.FreeCameraInitAngle[0] = glm::dvec3{angles};
+	ui()->set_status(STR("The start camera is set where the camera is; it goes into the scenery with the next save (Ctrl+S)"));
+	WriteLog("Editor: the start camera set: " + directive, logtype::generic);
 }
 
 void editor_mode::draw_brush_erase()

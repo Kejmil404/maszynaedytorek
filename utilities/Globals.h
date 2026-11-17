@@ -103,6 +103,8 @@ struct global_settings {
     };
     test_settings test;
     bool editor_tracks{ false }; // F3 track workspace: draw and pick tracks without the scenery draw-range cap
+    // the free camera of the driver's view taken over from the editor as it's left (position, pitch/yaw/roll); not saved anywhere
+    std::optional<std::pair<glm::dvec3, glm::vec3>> editor_exit_camera;
     int iConvertModels{ 0 }; // tworzenie plików binarnych
     int iConvertIndexRange{ 1000 }; // range of duplicate vertex scan
     bool file_binary_terrain{ true }; // enable binary terrain (de)serialization
