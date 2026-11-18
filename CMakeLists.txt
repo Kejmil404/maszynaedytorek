@@ -259,6 +259,7 @@ set(SOURCES
 "application/editormodesignal.cpp"
 "application/editormodesweep.cpp"
 "application/editormodeturntable.cpp"
+"application/editormodeevents.cpp"
 "application/editormodeselftest.cpp"
 "application/editormodeselftestscene.cpp"
 "application/editormodeselftestsleepers.cpp"

@@ -73,6 +73,19 @@ class TAnimModel;
 // a tool of a field of work of the editor, a button in the toolbar and over the 3d view
 struct editor_tool_button;
 class TTrack;
+class sound_source;
+// an ambient sound of the field of work of the events: a sound node, its events and its event launcher
+struct editor_mode_ambient
+{
+	std::string name;
+	glm::dvec3 location{0.0};
+	std::string file; // as the sound node gives it: from the sounds folder of the game
+	float range{150.0f}; // m, heard as far as this, and set off when the camera comes this near
+	int play{0}; // 0: in a loop, 1: once every so many seconds, 2: in a loop between two hours
+	float every{60.0f}; // s
+	int from{600}; // HHMM
+	int to{2000};
+};
 
 class editor_mode : public application_mode, private editor_track::observer, private editor_services
 {
@@ -890,6 +903,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool m_terrain_stroke{false}; // a stroke of the brush is under way
 	bool m_terrain_picking{false}; // the next click picks the target height
 	int m_terrain_layer{0};               // entry of the palette painted
+	bool m_terrain_erase{false};          // the paint tool takes the painted materials away instead, back to the first one of each chunk
+	bool m_terrain_erase_only{false};     // only the material chosen in the palette
+	std::vector<std::uint16_t> m_terrain_protected; // entries of the palette the paint, the eraser and the fill leave alone
+	void render_terrain_paint_options();
 	char m_terrain_material[128]{"grass"}; // material added to the palette
 	float m_terrain_material_size{0.0f};   // metres its textures repeat at, 0: given by the material
 	float m_terrain_layer_size{0.0f};      // repeat of the chosen palette entry, while it's dragged
@@ -1133,8 +1150,40 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		surroundings,
 		tracks,
 		roads,
-		terrain
+		terrain,
+		events // with the experimental functions only
 	};
+	// the field of work of the events (experimental). for now the ambient sounds: a sound node, its events and its event launcher
+	// each, written by the editor on each save to its own include, <scenery>_dzwieki.scm, which any build reads
+	bool m_events_open{false};
+	using ambient_sound = editor_mode_ambient;
+	struct events_state
+	{
+		bool loaded{false}; // the sounds of the file of the editor read
+		bool included{false}; // its include written in this session
+		std::vector<ambient_sound> sounds;
+		int selected{-1};
+		bool placing{false}; // the next click puts a new sound
+		bool moving{false}; // the next click moves the selected one
+		std::array<char, 512> file{}; // of the sound to be put
+		float height{2.0f}; // m over the ground
+		std::future<editor_file_dialog::result> dialog;
+		std::shared_ptr<sound_source> preview;
+		int previewing{-1};
+		std::string status;
+	};
+	events_state m_events;
+	void events_workspace(bool const Open);
+	void events_load();
+	void render_events_tool_options();
+	void render_events_selection();
+	void render_ambient_sound(ambient_sound &Sound);
+	bool events_click();
+	void draw_events_overlay();
+	void events_listen(int const Index);
+	void events_place(glm::dvec3 const &Where);
+	// the file of the ambient sounds written for the save, and its include put among Rootstatements when it isn't there yet
+	bool ambient_sounds(std::vector<std::string> &Rootstatements);
 	work_area current_work_area() const;
 	void choose_work_area(work_area const Area);
 	void render_workspaces();

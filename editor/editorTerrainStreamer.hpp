@@ -117,6 +117,11 @@ class terrain_streamer
 	std::size_t touched_up() const;
 	// paints the material of the palette entry Layer within Radius of (X,Z), Strength (0..1) of the way at the centre
 	bool paint(double X, double Z, double Radius, double Strength, std::uint16_t Layer);
+	// the painted materials taken away under the brush, given back to the first material of each chunk; Only: just that entry of
+	// the palette, -1 all of them
+	bool erase(double X, double Z, double Radius, double Strength, int Only);
+	// the entries of the palette the paint, the eraser and the fill leave alone: where they're painted already, less is changed
+	void protect(std::vector<std::uint16_t> Layers) { m_protected = std::move(Layers); }
 	// fills the area within Outline (x, z) with the material of the palette entry Layer, Strength (0..1) of the way.
 	// Feather: metres across the outline the material blends in over, half of them inside; 0: a sharp edge, as sharp as
 	// the paint samples of the chunks go. the chunks are loaded where needed
@@ -255,6 +260,10 @@ class terrain_streamer
 	// paints the material of the palette entry Layer over the paint samples within the rectangle, Amount (0..1) of the way
 	// at each, as Amount gives it for the place of the sample. Load: chunks not in memory are loaded
 	bool paint_area(glm::dvec2 const &Min, glm::dvec2 const &Max, std::uint16_t Layer, bool Load, std::function<double(double X, double Z)> const &Amount);
+	// the share (0..1) of a sample of the chunk which isn't of a protected material
+	double unprotected(heightmap::chunk_data const &Data, std::size_t Sample) const;
+	bool erase_chunk(heightmap::chunk_data &Data, double X, double Z, double Radius, double Strength, int Only) const;
+	std::vector<std::uint16_t> m_protected;
 	// chunk loaded right away from its pack file, for editing far from the camera
 	editor_terrain *load_now(chunk_key const &Key);
 	// chunks in memory or in the files overlapping the rectangle, loaded if needed

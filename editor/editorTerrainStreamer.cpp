@@ -1361,10 +1361,11 @@ bool terrain_streamer::paint_area(glm::dvec2 const &Min, glm::dvec2 const &Max, 
 		for (int iz = zs.first; iz <= zs.second; ++iz)
 			for (int ix = xs.first; ix <= xs.second; ++ix)
 			{
-				auto const amount{std::clamp(Amount(low.x + ix * step, low.y + iz * step), 0.0, 1.0)};
+				auto const sample{static_cast<std::size_t>(iz) * (samples + 1) + ix};
+				// a protected material keeps what it has of the sample
+				auto const amount{std::clamp(Amount(low.x + ix * step, low.y + iz * step), 0.0, 1.0) * unprotected(*data, sample)};
 				if (amount <= 0.0)
 					continue;
-				auto const sample{static_cast<std::size_t>(iz) * (samples + 1) + ix};
 				auto &own{data->weights[slot * plane + sample]};
 				auto const target{static_cast<int>(std::lround(own + (255 - own) * amount))};
 				if (target == own)
@@ -1393,6 +1394,83 @@ bool terrain_streamer::paint_area(glm::dvec2 const &Min, glm::dvec2 const &Max, 
 		changed = true;
 	}
 	return changed;
+}
+
+double terrain_streamer::unprotected(heightmap::chunk_data const &Data, std::size_t const Sample) const
+{
+	if (m_protected.empty() || Data.weights.empty())
+		return 1.0;
+	auto const plane{static_cast<std::size_t>(Data.paint + 1) * (Data.paint + 1)};
+	int kept{0};
+	for (std::size_t slot = 0; slot < Data.layer_count(); ++slot)
+		if (std::ranges::find(m_protected, Data.layers[slot]) != m_protected.end())
+			kept += Data.weights[slot * plane + Sample];
+	return 1.0 - std::min(kept, 255) / 255.0;
+}
+
+bool terrain_streamer::erase(double const X, double const Z, double const Radius, double const Strength, int const Only)
+{
+	if (Radius <= 0.0 || Strength <= 0.0)
+		return false;
+	bool changed{false};
+	for (auto *chunk : chunks_in(glm::dvec2{X - Radius, Z - Radius}, glm::dvec2{X + Radius, Z + Radius}, false))
+	{
+		auto const &current{chunk->data()};
+		// a chunk of one material has nothing painted over it
+		if (current.paint <= 0 || current.layer_count() < 2)
+			continue;
+		auto data{std::make_shared<heightmap::chunk_data>(current)};
+		if (erase_chunk(*data, X, Z, Radius, Strength, Only))
+		{
+			data->compact_layers();
+			remember(*chunk);
+			chunk->replace(std::move(data), false, true);
+			changed = true;
+		}
+	}
+	return changed;
+}
+
+bool terrain_streamer::erase_chunk(heightmap::chunk_data &Data, double const X, double const Z, double const Radius, double const Strength, int const Only) const
+{
+	auto const samples{Data.paint};
+	auto const step{heightmap::chunk_size / samples};
+	auto const low{Data.corner()};
+	auto const xs{index_range(low.x, step, samples + 1, X - Radius, X + Radius)};
+	auto const zs{index_range(low.y, step, samples + 1, Z - Radius, Z + Radius)};
+	auto const plane{static_cast<std::size_t>(samples + 1) * (samples + 1)};
+	auto const count{Data.layer_count()};
+	bool erased{false};
+	for (int iz = zs.first; iz <= zs.second; ++iz)
+		for (int ix = xs.first; ix <= xs.second; ++ix)
+		{
+			auto const px{low.x + ix * step};
+			auto const pz{low.y + iz * step};
+			auto const distance{std::hypot(px - X, pz - Z)};
+			if (distance > Radius)
+				continue;
+			auto const sample{static_cast<std::size_t>(iz) * (samples + 1) + ix};
+			auto const amount{std::clamp(Strength * falloff(distance, Radius), 0.0, 1.0) * unprotected(Data, sample)};
+			if (amount <= 0.0)
+				continue;
+			// what the others give up goes to the first material of the chunk, the weights still adding up to 255
+			int given{0};
+			for (std::size_t slot = 1; slot < count; ++slot)
+			{
+				if (Only >= 0 && Data.layers[slot] != static_cast<std::uint16_t>(Only))
+					continue;
+				auto &weight{Data.weights[slot * plane + sample]};
+				auto const taken{static_cast<int>(std::lround(weight * amount))};
+				weight = static_cast<std::uint8_t>(weight - taken);
+				given += taken;
+			}
+			if (given == 0)
+				continue;
+			auto &base{Data.weights[sample]};
+			base = static_cast<std::uint8_t>(std::min(255, base + given));
+			erased = true;
+		}
+	return erased;
 }
 
 std::uint16_t terrain_streamer::layer(std::string const &Material, float const Size, float const Rotation)

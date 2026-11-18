@@ -236,7 +236,16 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		Buttons.push_back({icon::smooth, STR_C("Smooth"), nullptr, STR_C("LMB evens the terrain out under the brush"), chosen(terrain_tool::smooth), choose(terrain_tool::smooth)});
 		Buttons.push_back({icon::profile, STR_C("Level"), nullptr, STR_C("LMB leads the terrain under the brush to the target height, Ctrl+LMB takes the target height from what's under the cursor"),
 		                   chosen(terrain_tool::level), choose(terrain_tool::level)});
-		Buttons.push_back({icon::brush, STR_C("Paint"), nullptr, STR_C("LMB paints the material chosen in the palette, Shift+LMB the first material of the palette"), chosen(terrain_tool::paint), choose(terrain_tool::paint)});
+		Buttons.push_back({icon::brush, STR_C("Paint"), nullptr, STR_C("LMB paints the material chosen in the palette, Shift+LMB the first material of the palette"), chosen(terrain_tool::paint) && false == m_terrain_erase,
+		                   [this]() {
+			                   m_terrain_tool = terrain_tool::paint;
+			                   m_terrain_erase = false;
+		                   }});
+		Buttons.push_back({icon::eraser, STR_C("Eraser"), nullptr, STR_C("LMB takes the painted materials away under the brush, back to the first material of each chunk; Shift+LMB all of them always"),
+		                   chosen(terrain_tool::paint) && m_terrain_erase, [this]() {
+			                   m_terrain_tool = terrain_tool::paint;
+			                   m_terrain_erase = true;
+		                   }});
 		Buttons.push_back({icon::chunks, STR_C("Chunks"), nullptr, STR_C("LMB adds a chunk next to the clicked one, Shift+LMB removes it"), chosen(terrain_tool::chunks), choose(terrain_tool::chunks)});
 		Buttons.push_back({icon::area_fill, STR_C("Water"), nullptr, STR_C("LMB adds a point of the outline of a body of water, Shift+LMB takes the last one back"), chosen(terrain_tool::water), choose(terrain_tool::water)});
 		Buttons.push_back({icon::count, STR_C("Fill"), nullptr, STR_C("LMB adds a point of the outline of an area to fill with a material, Shift+LMB takes the last one back"), chosen(terrain_tool::fill),
@@ -443,6 +452,10 @@ void editor_mode::render_viewport_gizmo()
 	// the gizmo always scales along the axes of the model
 	buttons.push_back({icon::local_space, STR_C("Local space"), "R", STR_C("The handles along the axes of the selected model instead of the axes of the world"), on && (m_gizmo_local || m_gizmo_op == gizmo_operation::scale),
 	                   [this]() { m_gizmo_local = !m_gizmo_local; }, true, on && m_gizmo_op != gizmo_operation::scale});
+	// drawn to the other models while moved; what to and how near is set in the options of the gizmo
+	if (false == tracks)
+		buttons.push_back({icon::magnet, STR_C("Snap to objects"), nullptr, STR_C("While moved with the gizmo the model is drawn to the other models; Alt held: not"), on && m_snap_objects,
+		                   [this]() { m_snap_objects = !m_snap_objects; }, false, on && m_gizmo_op == gizmo_operation::translate});
 	// in a row at the top, in the middle
 	auto const side{button_side()};
 	auto const gap{2.0f * scale()};

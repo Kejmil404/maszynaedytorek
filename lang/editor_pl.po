@@ -14596,3 +14596,143 @@ msgstr "Czułość"
 
 msgid "How near, on the screen, the model is drawn from"
 msgstr "Z jakiej odległości na ekranie model jest przyciągany"
+
+# scenery editor: the panels, the eraser and the protected materials, the ambient sounds (experimental)
+
+msgid "Transparency of the panels"
+msgstr "Przezroczystość paneli"
+
+msgid "Experimental functions"
+msgstr "Funkcje eksperymentalne"
+
+msgid "The functions still being tried out: the field of work of the events (F6). They write only what any build reads, but may change or go"
+msgstr "Funkcje jeszcze w testach: tryb Eventy (F6). Zapisują tylko to, co czyta każdy build, ale mogą się zmienić albo zniknąć"
+
+msgid "Experimental: the ambient sounds of the scenery, each a sound node with its events and event launcher"
+msgstr "Eksperymentalne: dźwięki otoczenia scenerii, każdy jako węzeł dźwięku ze swoimi eventami i launcherem"
+
+msgid "Eraser"
+msgstr "Gumka"
+
+msgid "Paint##terrainpaint"
+msgstr "Maluj##terrainpaint"
+
+msgid "LMB takes the painted materials away under the brush, back to the first material of each chunk; Shift+LMB all of them always"
+msgstr "LPM zdejmuje pomalowane materiały pod pędzlem, z powrotem do pierwszego materiału kawałka; Shift+LPM zawsze wszystkie"
+
+msgid "Only the chosen material"
+msgstr "Tylko wybrany materiał"
+
+msgid "The eraser takes away only the material chosen in the palette, the others stay"
+msgstr "Gumka zdejmuje tylko materiał wybrany w palecie, pozostałe zostają"
+
+msgid "Protected materials"
+msgstr "Chronione materiały"
+
+msgid "Protected materials (%zu)"
+msgstr "Chronione materiały (%zu)"
+
+msgid "Where these are painted already the paint, the eraser and the fill change nothing, and less where they're mixed with others"
+msgstr "Tam, gdzie są już namalowane, malowanie, gumka i wypełnianie nic nie zmieniają, a tam, gdzie są zmieszane z innymi, zmieniają mniej"
+
+msgid "Ambient sounds"
+msgstr "Dźwięki otoczenia"
+
+msgid "A sound heard around a place of the scenery: birds, a stream, a works. Each is a sound node with its events and an event launcher, written on each save to an include of the editor"
+msgstr "Dźwięk słyszany wokół miejsca scenerii: ptaki, strumień, zakład. Każdy to węzeł dźwięku z eventami i launcherem, zapisywany przy każdym zapisie do pliku include edytora"
+
+msgid "A sound file: .wav, .ogg, .flac"
+msgstr "Plik dźwięku: .wav, .ogg, .flac"
+
+msgid "From the sounds folder of the game, as sounds/birds.wav is birds.wav; a file from elsewhere is copied to sounds/<scenery>/"
+msgstr "Z folderu sounds gry, np. sounds/ptaki.wav to ptaki.wav; plik spoza niego jest kopiowany do sounds/<sceneria>/"
+
+msgid "Choose...##ambient"
+msgstr "Wybierz...##ambient"
+
+msgid "A sound file"
+msgstr "Plik dźwięku"
+
+msgid "Sounds"
+msgstr "Dźwięki"
+
+msgid "Over the ground (m)"
+msgstr "Nad ziemią (m)"
+
+msgid "Put a sound"
+msgstr "Postaw dźwięk"
+
+msgid "Click where it's to be heard..."
+msgstr "Kliknij, gdzie ma być słychać..."
+
+msgid "Then LMB on the ground puts it there; Shift+LMB puts one more"
+msgstr "Potem LPM na ziemi stawia go tam; Shift+LPM stawia kolejny"
+
+msgid "Sounds of the editor: %zu, sound nodes of the scenery: %zu"
+msgstr "Dźwięki edytora: %zu, węzły dźwięku scenerii: %zu"
+
+msgid "Click a sound in the view, or in the list, to change it"
+msgstr "Kliknij dźwięk w widoku albo na liście, żeby go zmienić"
+
+msgid "Heard as far as (m)"
+msgstr "Słychać do (m)"
+
+msgid "The sound fades out over this distance, and it's set off when the camera comes this near"
+msgstr "Dźwięk cichnie na tej odległości i włącza się, gdy kamera podjedzie tak blisko"
+
+msgid "In a loop, from when the camera comes near"
+msgstr "W pętli, od kiedy kamera podjedzie blisko"
+
+msgid "Once every so many seconds, while the camera is near"
+msgstr "Raz co ileś sekund, gdy kamera jest blisko"
+
+msgid "In a loop between two hours"
+msgstr "W pętli między dwiema godzinami"
+
+msgid "Every (s)"
+msgstr "Co (s)"
+
+msgid "From (HHMM)"
+msgstr "Od (GGMM)"
+
+msgid "To (HHMM)"
+msgstr "Do (GGMM)"
+
+msgid "It starts at the first hour and stops at the second; a scenario which starts between them stays silent until the first hour comes"
+msgstr "Włącza się o pierwszej godzinie i wyłącza o drugiej; scenariusz, który zaczyna się między nimi, jest cichy aż do pierwszej godziny"
+
+msgid "Place##ambient"
+msgstr "Położenie##ambient"
+
+msgid "Listen"
+msgstr "Odsłuchaj"
+
+msgid "Move"
+msgstr "Przesuń"
+
+msgid "Click the new place..."
+msgstr "Kliknij nowe miejsce..."
+
+msgid "Fly to##ambient"
+msgstr "Leć do##ambient"
+
+msgid "Delete##ambient"
+msgstr "Usuń##ambient"
+
+msgid "%s put; it goes into the scenery with the next save, and plays in it after the scenery is loaded again"
+msgstr "%s postawiony; trafi do scenerii przy następnym zapisie i zagra w niej po ponownym wczytaniu scenerii"
+
+msgid "The sound moved; it goes into the scenery with the next save"
+msgstr "Dźwięk przesunięty; trafi do scenerii przy następnym zapisie"
+
+msgid "The sound deleted; it goes out of the scenery with the next save"
+msgstr "Dźwięk usunięty; zniknie ze scenerii przy następnym zapisie"
+
+msgid "There's no such file in the sounds folder of the game"
+msgstr "W folderze sounds gry nie ma takiego pliku"
+
+msgid "The file couldn't be copied to the sounds folder of the game"
+msgstr "Nie udało się skopiować pliku do folderu sounds gry"
+
+msgid "The system has no file dialog the editor can open: type the path of the file"
+msgstr "System nie ma okna wyboru plików, które edytor może otworzyć: wpisz ścieżkę do pliku"

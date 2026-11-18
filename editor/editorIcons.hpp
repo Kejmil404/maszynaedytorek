@@ -62,6 +62,11 @@ enum class icon
 	// the tools of the signalling beside signal and station
 	station_signals,
 	line_block,
+	// to snap to other objects, the field of work of the events, a sound, the eraser of the paint
+	magnet,
+	work_events,
+	sound,
+	eraser,
 	count
 };
 

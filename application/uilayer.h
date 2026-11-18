@@ -81,8 +81,9 @@ public:
 	// colours of the user interface: 0 the green ones shared with the starter, 1 the amber ones of the editor
 	// the number of the palettes imgui_colors() knows
 	static constexpr int palette_count{8};
-	// Brightness (0..1): how much lighter than the default the panels are
-	static void imgui_colors(int const Palette, float const Brightness);
+	// Brightness (0..1): how much lighter than the default the panels are; Transparency (0..0.8): how much of what's under them
+	// shows through their grounds
+	static void imgui_colors(int const Palette, float const Brightness, float const Transparency);
 
     // assign texturing hardware unit
     static void set_unit( GLint const Textureunit ) { m_textureunit = GL_TEXTURE0 + Textureunit; }
@@ -161,8 +162,13 @@ protected:
 	{
 		return 0.0f;
 	}
+	virtual float panel_transparency() const
+	{
+		return 0.0f;
+	}
 	static int m_palette; // colours set at the moment
 	static float m_brightness;
+	static float m_transparency;
    ui_log_panel m_logpanel { "Log", true };
 	bool m_suppress_menu = false; // if `true`, the menu at the top of the window will not be present
 	bool m_menu_always = false; // if `true`, the menu is shown all the time, not only when the mouse is at the top of the window

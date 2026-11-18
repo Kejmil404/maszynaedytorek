@@ -562,6 +562,7 @@ editor_mode::editor_mode() {
 	ui()->set_track_options([this]() { render_track_tool_options(); }, [this]() { render_track_selection(); });
 	ui()->set_workspace_options(editor_ui::workspace::roads, [this]() { render_road_tool_options(); }, [this]() { render_road_selection(); });
 	ui()->set_workspace_options(editor_ui::workspace::terrain, [this]() { render_terrain_tool_options(); });
+	ui()->set_workspace_options(editor_ui::workspace::events, [this]() { render_events_tool_options(); }, [this]() { render_events_selection(); });
 	ui()->set_workspace_bank(editor_ui::workspace::terrain, [this]() { render_texture_browser(); }, STR("Textures"));
 	// a node picked in the scene window is selected as if clicked in the view; a double click flies the camera to it
 	ui()->set_scene_select([this](scene::basic_node *Node, bool const Focus) {
@@ -1717,7 +1718,13 @@ bool editor_mode::update()
     update_road_tool();
     draw_road_overlay();
     // the roads and the terrain are fields of work, their tools are drawn in the tool options window in place of the edit mode ones
-    ui()->set_workspace(m_terrain_open ? editor_ui::workspace::terrain : m_roadtool.window ? editor_ui::workspace::roads : editor_ui::workspace::none);
+    auto workspace{m_roadtool.window ? editor_ui::workspace::roads : editor_ui::workspace::none};
+    if (m_terrain_open)
+        workspace = editor_ui::workspace::terrain;
+    if (m_events_open)
+        workspace = editor_ui::workspace::events;
+    ui()->set_workspace(workspace);
+    draw_events_overlay();
 
     steps.step("roads");
     // --- array: the one made last is kept in line with its settings ---
@@ -1801,6 +1808,21 @@ void editor_mode::render_settings()
             if (ImGui::IsItemDeactivatedAfterEdit())
                 EditorSettings.save();
             EditorSettings.panel_brightness(std::clamp(brightness / 100.0f, 0.0f, 1.0f));
+            float transparency{EditorSettings.panel_transparency() * 100.0f};
+            ImGui::SliderFloat(STR_C("Transparency of the panels"), &transparency, 0.0f, 80.0f, "%.0f%%");
+            if (ImGui::IsItemDeactivatedAfterEdit())
+                EditorSettings.save();
+            EditorSettings.panel_transparency(std::clamp(transparency / 100.0f, 0.0f, 0.8f));
+            if (bool experimental{EditorSettings.experimental()}; ImGui::Checkbox(STR_C("Experimental functions"), &experimental))
+            {
+                EditorSettings.experimental(experimental);
+                EditorSettings.save();
+                // the field of work of the events goes with them
+                if (false == experimental && m_events_open)
+                    choose_work_area(work_area::surroundings);
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", STR_C("The functions still being tried out: the field of work of the events (F6). They write only what any build reads, but may change or go"));
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -2023,6 +2045,7 @@ void editor_mode::render_terrain_ui()
                 ImGui::SetTooltip("%s", STR_C("Angle the textures of the chosen material are turned by, on every chunk painted with it.\n"
                                         "Ctrl+click to type it. To have the material turned in one place only, fill it there with an angle of its own."));
         }
+        render_terrain_paint_options();
         texture_field(STR_C("Material"), 160.0f, m_terrain_material, IM_ARRAYSIZE(m_terrain_material), terrain_texture_offer(nullptr));
         ImGui::SameLine();
         if (ImGui::Button(STR_C("Add to the palette")) && m_terrain_material[0] != '\0')
@@ -3301,6 +3324,7 @@ bool editor_mode::save()
     }
     auto const terrainadded{false == rootstatements.empty() || false == statements.empty()};
     auto const controls{turntable_controls(rootstatements)};
+    auto const ambient{ambient_sounds(rootstatements)};
     auto const noses{nose_controls(rootstatements)};
     std::vector<std::string> trailing;
     auto const placed{m_vehicle.trainset_lines(trailing)};
@@ -3309,6 +3333,8 @@ bool editor_mode::save()
     auto const result = scene::Layers.save(rootstatements, trailing, statements);
     if (result.success && controls)
         m_turntable_included = true;
+    if (result.success && ambient)
+        m_events.included = true;
     if (result.success && noses)
         m_nose_included = true;
     if (result.success && placed > 0)
@@ -3639,7 +3665,12 @@ void editor_mode::handle_terrain_brush(double Deltatime)
         break;
     }
     case terrain_tool::paint:
-        m_streamer.paint(world.x, world.z, m_terrain_brush_radius, std::min(1.0, rate * 0.25), Global.shiftState ? std::uint16_t{0} : static_cast<std::uint16_t>(m_terrain_layer));
+        m_streamer.protect(m_terrain_protected);
+        // the eraser: Shift+LMB takes every painted material away, as does LMB unless only the chosen one is to go
+        if (m_terrain_erase)
+            m_streamer.erase(world.x, world.z, m_terrain_brush_radius, std::min(1.0, rate * 0.25), (m_terrain_erase_only && false == Global.shiftState) ? m_terrain_layer : -1);
+        else
+            m_streamer.paint(world.x, world.z, m_terrain_brush_radius, std::min(1.0, rate * 0.25), Global.shiftState ? std::uint16_t{0} : static_cast<std::uint16_t>(m_terrain_layer));
         break;
     case terrain_tool::restore:
         shaped = m_streamer.restore_stitching(world.x, world.z, m_terrain_brush_radius, std::min(1.0, rate * 0.5));
@@ -3702,6 +3733,7 @@ void editor_mode::fill_terrain_area()
     std::vector<glm::dvec2> outline;
     for (auto const &point : m_paint_outline)
         outline.emplace_back(point.x, point.z);
+    m_streamer.protect(m_terrain_protected);
     auto const filled = m_streamer.fill(outline, m_paint_feather, layer);
     m_terrain_status = filled ? format(STR_C("Area filled with %s"), chosen.material.c_str()) : std::string(STR_C("Nothing filled: no chunk under the outline, or no room for another material"));
     if (filled)
@@ -5231,7 +5263,9 @@ void editor_mode::render_array()
 
 void editor_mode::choose_edit_mode(nodebank_panel::edit_mode const Mode)
 {
-	// an edit mode is the field of work instead of the tracks, roads or terrain
+	// an edit mode is the field of work instead of the tracks, roads, terrain or events
+	if (m_events_open)
+		events_workspace(false);
 	m_track_window_open = false;
 	m_roadtool.window = false;
 	terrain_workspace(false);
@@ -5242,6 +5276,8 @@ void editor_mode::choose_edit_mode(nodebank_panel::edit_mode const Mode)
 
 editor_mode::work_area editor_mode::current_work_area() const
 {
+	if (m_events_open)
+		return work_area::events;
 	// the terrain is shown over the tracks, see the tool options window
 	if (m_terrain_open)
 		return work_area::terrain;
@@ -5254,6 +5290,11 @@ editor_mode::work_area editor_mode::current_work_area() const
 
 void editor_mode::choose_work_area(work_area const Area)
 {
+	// the events are a field of work of their own, with the experimental functions only
+	if (Area == work_area::events && false == EditorSettings.experimental())
+		return;
+	if (Area != work_area::events && m_events_open)
+		events_workspace(false);
 	switch (Area)
 	{
 	case work_area::surroundings:
@@ -5274,6 +5315,12 @@ void editor_mode::choose_work_area(work_area const Area)
 		m_roadtool.window = false;
 		terrain_workspace(true);
 		break;
+	case work_area::events:
+		m_track_window_open = false;
+		m_roadtool.window = false;
+		terrain_workspace(false);
+		events_workspace(true);
+		break;
 	}
 }
 
@@ -5286,13 +5333,15 @@ void editor_mode::render_workspaces()
 		editor_icons::icon picture;
 		char const *tooltip;
 	};
-	area const areas[] = {
+	std::vector<area> areas{
 	    {STR_C("Surroundings"), work_area::surroundings, editor_icons::icon::work_surroundings, STR_C("Models around the line: select, insert, brush, area fill, copy to the node bank")},
 	    {STR_C("Tracks"), work_area::tracks, editor_icons::icon::work_tracks, STR_C("Tracks and switches, signals, kilometrage and posts along the track, checks of the line")},
 	    {STR_C("Roads"), work_area::roads, editor_icons::icon::work_roads, STR_C("Roads and junctions, level crossings, the points where the traffic comes and goes")},
 	    {STR_C("Terrain"), work_area::terrain, editor_icons::icon::work_terrain, STR_C("Heightmap terrain: chunks, sculpting, painting, water, orthophoto")},
 	};
-	char const *const keys[] = {"F2", "F3", "F4", "F5"};
+	if (EditorSettings.experimental())
+		areas.push_back({STR_C("Events"), work_area::events, editor_icons::icon::work_events, STR_C("Experimental: the ambient sounds of the scenery, each a sound node with its events and event launcher")});
+	std::array const keys{"F2", "F3", "F4", "F5", "F6"};
 	auto const current{current_work_area()};
 	auto const &style{ImGui::GetStyle()};
 	auto *list{ImGui::GetWindowDrawList()};
@@ -7597,6 +7646,7 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         case GLFW_KEY_F3: choose_work_area(work_area::tracks); break;
         case GLFW_KEY_F4: choose_work_area(work_area::roads); break;
         case GLFW_KEY_F5: choose_work_area(work_area::terrain); break;
+        case GLFW_KEY_F6: choose_work_area(work_area::events); break;
         // the edit modes in the order of the toolbar; in the track mode the digits typed as a value were taken already
         case GLFW_KEY_1: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::MODIFY); break;
         case GLFW_KEY_2: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::ADD); break;
@@ -7952,6 +8002,14 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
     }
 
     // with the road window open the left button works its tools, whichever edit mode is on but the track one
+    // the events: the left button puts, moves or picks the ambient sounds, and nothing else
+    if (m_events_open && Button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        if (is_press(Action))
+            events_click();
+        m_input.mouse.button(Button, Action);
+        return;
+    }
     if (m_roadtool.window && Button == GLFW_MOUSE_BUTTON_LEFT && ui()->mode() != nodebank_panel::TRACK)
     {
         // Alt+LMB on a point: its height (and the other selected ones') dragged up or down

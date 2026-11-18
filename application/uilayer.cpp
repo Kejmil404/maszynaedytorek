@@ -33,6 +33,7 @@ GLint ui_layer::m_textureunit{GL_TEXTURE0};
 bool ui_layer::m_cursorvisible;
 int ui_layer::m_palette{0};
 float ui_layer::m_brightness{0.0f};
+float ui_layer::m_transparency{0.0f};
 ImFont *ui_layer::font_default{nullptr};
 ImFont *ui_layer::font_mono{nullptr};
 ImFont *ui_layer::font_loading{nullptr};
@@ -217,10 +218,11 @@ int lightened(int const Color, float const Share)
 }
 } // namespace
 
-void ui_layer::imgui_colors(int const Palette, float const Brightness)
+void ui_layer::imgui_colors(int const Palette, float const Brightness, float const Transparency)
 {
 	m_palette = Palette;
 	m_brightness = Brightness;
+	m_transparency = Transparency;
 	auto const rgb = [](int const Color, float const Alpha = 1.0f) {
 		return ImVec4(((Color >> 16) & 0xff) / 255.0f, ((Color >> 8) & 0xff) / 255.0f, (Color & 0xff) / 255.0f, Alpha);
 	};
@@ -296,11 +298,15 @@ void ui_layer::imgui_colors(int const Palette, float const Brightness)
 	// where a dragged window would be docked, and an empty dock node
 	colors[ImGuiCol_DockingPreview] = rgb(accentbright, 0.70f);
 	colors[ImGuiCol_DockingEmptyBg] = rgb(base);
+	// the panels see-through as the settings of the editor say: their grounds only, the text and the controls stay as they are
+	if (auto const kept{1.0f - std::clamp(Transparency, 0.0f, 0.8f)}; kept < 1.0f)
+		for (auto const which : {ImGuiCol_WindowBg, ImGuiCol_PopupBg, ImGuiCol_TitleBg, ImGuiCol_TitleBgActive, ImGuiCol_TitleBgCollapsed, ImGuiCol_MenuBarBg, ImGuiCol_DockingEmptyBg})
+			colors[which].w *= kept;
 }
 
 void ui_layer::imgui_style()
 {
-	imgui_colors(0, 0.0f);
+	imgui_colors(0, 0.0f, 0.0f);
 
 	// flat, square elements with thin borders
 	auto &style = ImGui::GetStyle();
@@ -582,8 +588,8 @@ void ui_layer::render_internal()
 void ui_layer::begin_ui_frame()
 {
 	// the colours follow the ui of the mode drawn
-	if (palette() != m_palette || panel_brightness() != m_brightness)
-		imgui_colors(palette(), panel_brightness());
+	if (palette() != m_palette || panel_brightness() != m_brightness || panel_transparency() != m_transparency)
+		imgui_colors(palette(), panel_brightness(), panel_transparency());
 	begin_ui_frame_internal();
 	render_dockspace();
 	m_dockspaceframe = ImGui::GetFrameCount();

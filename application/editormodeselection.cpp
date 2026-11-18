@@ -307,6 +307,45 @@ void editor_mode::set_start_camera()
 	WriteLog("Editor: the start camera set: " + directive, logtype::generic);
 }
 
+void editor_mode::render_terrain_paint_options()
+{
+	auto const &layers{m_streamer.manifest().layers};
+	// what the brush does: paint or rub out
+	if (ImGui::RadioButton(STR_C("Paint##terrainpaint"), false == m_terrain_erase))
+		m_terrain_erase = false;
+	ImGui::SameLine();
+	if (ImGui::RadioButton(STR_C("Eraser"), m_terrain_erase))
+		m_terrain_erase = true;
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("LMB takes the painted materials away under the brush, back to the first material of each chunk; Shift+LMB all of them always"));
+	if (m_terrain_erase)
+	{
+		ImGui::SameLine();
+		ImGui::Checkbox(STR_C("Only the chosen material"), &m_terrain_erase_only);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", STR_C("The eraser takes away only the material chosen in the palette, the others stay"));
+	}
+	// the materials left alone
+	std::erase_if(m_terrain_protected, [&layers](std::uint16_t const Layer) { return Layer >= layers.size(); });
+	auto const title{m_terrain_protected.empty() ? std::string{STR("Protected materials")} : format(STR_C("Protected materials (%zu)"), m_terrain_protected.size())};
+	if (false == ImGui::TreeNode((title + "###terrainprotected").c_str()))
+		return;
+	ImGui::TextDisabled("%s", STR_C("Where these are painted already the paint, the eraser and the fill change nothing, and less where they're mixed with others"));
+	for (std::size_t i = 0; i < layers.size(); ++i)
+	{
+		auto const layer{static_cast<std::uint16_t>(i)};
+		auto const listed{std::ranges::find(m_terrain_protected, layer)};
+		bool on{listed != m_terrain_protected.end()};
+		if (false == ImGui::Checkbox(format("%zu: %s##protect%zu", i, layers[i].material.c_str(), i).c_str(), &on))
+			continue;
+		if (on)
+			m_terrain_protected.push_back(layer);
+		else
+			m_terrain_protected.erase(listed);
+	}
+	ImGui::TreePop();
+}
+
 void editor_mode::draw_brush_erase()
 {
 	if (ui()->mode() != nodebank_panel::BRUSH || false == ui()->brush().erase || ImGui::GetIO().WantCaptureMouse)

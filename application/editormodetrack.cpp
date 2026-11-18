@@ -506,6 +506,8 @@ void editor_mode::show_track_tab(track_tab const Wanted)
 	auto const Tab{Wanted == track_tab::straights || Wanted == track_tab::route ? plan_tab_for(selected_track()) : Wanted};
 	m_track_window_open = true;
 	m_roadtool.window = false;
+	if (m_events_open)
+		events_workspace(false);
 	if (Tab == m_track_tab)
 		return;
 	m_track_mode_notice.clear();

@@ -77,6 +77,12 @@ public:
 	// how much lighter the panels of the editor are, 0..1
 	float panel_brightness() const { return m_panel_brightness; }
 	void panel_brightness(float Brightness) { m_panel_brightness = Brightness; }
+	// how much of what's under the panels shows through them, 0..0.8
+	float panel_transparency() const { return m_panel_transparency; }
+	void panel_transparency(float Transparency) { m_panel_transparency = Transparency; }
+	// the functions of the editor still being tried out are shown: the field of work of the events
+	bool experimental() const { return m_experimental; }
+	void experimental(bool Experimental) { m_experimental = Experimental; }
 
 	// the tutorial (Help > Tutorial) opens by itself when an editor session starts
 	bool first_steps() const { return m_first_steps; }
@@ -135,6 +141,8 @@ private:
 	int m_nodebank_card{96};
 	int m_palette{0};
 	float m_panel_brightness{0.0f};
+	float m_panel_transparency{0.0f};
+	bool m_experimental{false};
 	bool m_first_steps{true};
 	bool m_terrain_offer{true};
 	bool m_terrain_buried_ask{true};

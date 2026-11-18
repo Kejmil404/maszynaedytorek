@@ -415,11 +415,38 @@ def line_block(d):
     line(d, [(31, 44), (31, 62)], W - 10)
 
 
+def magnet(d):
+    # a horseshoe magnet, its ends down
+    arc(d, 32, 30, 16, 180, 360)
+    line(d, [(16, 30), (16, 46)])
+    line(d, [(48, 30), (48, 46)])
+    rect(d, 10, 46, 22, 56, radius=2)
+    rect(d, 42, 46, 54, 56, radius=2)
+
+
+def work_events(d):
+    # a lightning bolt: something set off
+    poly(d, [(36, 6), (16, 36), (30, 36), (24, 58), (48, 26), (34, 26), (40, 6)])
+
+
+def sound(d):
+    # a loudspeaker and its waves
+    poly(d, [(8, 24), (20, 24), (32, 12), (32, 52), (20, 40), (8, 40)])
+    arc(d, 34, 32, 10, -50, 50)
+    arc(d, 34, 32, 20, -50, 50)
+
+
+def eraser(d):
+    # a rubber, leaning, over a line it rubs out
+    poly(d, [(22, 46), (44, 18), (56, 28), (34, 56)])
+    line(d, [(8, 56), (30, 56)])
+
+
 ICONS = [select, insert, brush, area_fill, copy_to_bank, translate, rotate, scale,
          local_space, ortho, perspective, sculpt, smooth, chunks, orthophoto, road,
          place, lanes, lay_track, switch, straight, curve, signal, objects,
          vehicle, profile, speed, joints, infra, gauge, turntable, parallel, station, kilometrage, more, work_surroundings,
-         work_tracks, work_roads, work_terrain, station_signals, line_block]
+         work_tracks, work_roads, work_terrain, station_signals, line_block, magnet, work_events, sound, eraser]
 
 
 def cutouts(name, d):

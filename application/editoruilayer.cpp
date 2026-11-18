@@ -730,7 +730,7 @@ void editor_ui::render_tool_options()
 		return;
 	ImGui::SetNextWindowSize(ImVec2S(400, 300), ImGuiCond_FirstUseEver);
 	auto const current{mode()};
-	auto const active{m_workspace == workspace::terrain || (m_workspace == workspace::roads && current != nodebank_panel::TRACK) ? m_workspace : workspace::none};
+	auto const active{m_workspace == workspace::terrain || m_workspace == workspace::events || (m_workspace == workspace::roads && current != nodebank_panel::TRACK) ? m_workspace : workspace::none};
 	// a change of the mode brings the window forward, in case it shares its dock with another one
 	auto const shown{active != workspace::none ? 100 + static_cast<int>(active) : static_cast<int>(current)};
 	if (shown != m_toolmode)
@@ -765,6 +765,8 @@ void editor_ui::render_tool_options()
 			name = STR_C("Roads");
 		else if (active == workspace::terrain)
 			name = STR_C("Terrain");
+		else if (active == workspace::events)
+			name = STR_C("Events");
 		ImGui::SeparatorText(name);
 		if (active != workspace::none)
 		{
@@ -1044,6 +1046,11 @@ int editor_ui::palette() const
 float editor_ui::panel_brightness() const
 {
 	return EditorSettings.panel_brightness();
+}
+
+float editor_ui::panel_transparency() const
+{
+	return EditorSettings.panel_transparency();
 }
 
 void editor_ui::set_file_actions(std::function<void()> Save, std::function<void()> Export)
