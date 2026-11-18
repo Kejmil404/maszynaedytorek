@@ -12,6 +12,35 @@
 
 MaSzyna executable source code is licensed under the [MPL 2.0](https://www.mozilla.org/en-US/MPL/2.0/) and comes with a large pack of free assets under a [custom license](https://eu07.pl/docs/inne/readme_pliki/en-licence.html).
 
+## Zmiany w tym forku (edytor scenerii)
+
+Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są tylko w edytorze, a do scenerii trafiają wyłącznie zwykłe wpisy i pliki, które oryginał już czyta.
+
+**Teren**
+- Wczytywanie modelu terenu z plików (.asc, .xyz, .tif): okno wyboru plików, wiele plików albo cały folder jako jedna mozaika, wygładzanie krawędzi i dopasowanie do istniejącego terenu.
+- Gumka do malowania terenu i chronione materiały (filtr pędzla).
+- „Tory na teren” tylko dla zaznaczonych torów.
+
+**Otoczenie**
+- Zaznaczanie ramką (Shift+przeciągnij), z osobnym zasięgiem.
+- Pędzel do usuwania modeli, z opcjonalnym filtrem.
+- Skalowanie wielu zaznaczonych modeli naraz.
+- Przyciąganie do obiektów: wierzchołki, środki, krawędź do krawędzi.
+
+**Drogi**
+- Zaznaczanie wielu dróg (Shift+klik, Shift+ramka), wspólna zmiana parametrów i usuwanie.
+- Poprawki dopasowania dróg do terenu (losowe skoki w górę).
+
+**Kamera i widok**
+- Kamera startowa scenerii ustawiana z edytora; po F11 kamera zostaje w miejscu edytora.
+- Widok z góry działa też w starym rendererze OpenGL.
+
+**Wygląd edytora**
+- Osiem kolorów akcentu, jasność i przezroczystość paneli.
+
+**Eksperymentalne** (włączane w ustawieniach edytora)
+- Tryb Eventy (F6): dźwięki otoczenia zapisywane do osobnego pliku include.
+
 
 ## Table of Contents
 
