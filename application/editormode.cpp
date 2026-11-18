@@ -1101,6 +1101,13 @@ void editor_mode::undo_one()
         return;
     }
 
+    if (snap.action == EditorSnapshot::Action::Sounds)
+    {
+        restore_sounds(snap);
+        g_redo.push_back(std::move(snap));
+        return;
+    }
+
     if (snap.action == EditorSnapshot::Action::Kilometrage)
     {
         restore_kilometrage(snap);
@@ -1273,6 +1280,13 @@ void editor_mode::redo_one()
     if (snap.action == EditorSnapshot::Action::Terrain)
     {
         restore_terrain(snap);
+        m_history.push_back(std::move(snap));
+        return;
+    }
+
+    if (snap.action == EditorSnapshot::Action::Sounds)
+    {
+        restore_sounds(snap);
         m_history.push_back(std::move(snap));
         return;
     }
@@ -1725,6 +1739,9 @@ bool editor_mode::update()
         workspace = editor_ui::workspace::events;
     ui()->set_workspace(workspace);
     draw_events_overlay();
+    if (m_events_open)
+        events_track_changes();
+    autosave_update();
 
     steps.step("roads");
     // --- array: the one made last is kept in line with its settings ---
@@ -1823,6 +1840,21 @@ void editor_mode::render_settings()
             }
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("%s", STR_C("The functions still being tried out: the field of work of the events (F6). They write only what any build reads, but may change or go"));
+            ImGui::SeparatorText(STR_C("Autosave"));
+            if (bool autosave{EditorSettings.autosave()}; ImGui::Checkbox(STR_C("Save the scenery by itself"), &autosave))
+            {
+                EditorSettings.autosave(autosave);
+                EditorSettings.save();
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", STR_C("Saves as Ctrl+S does, every so many minutes while there are changes not saved; it waits until the tool in hand is let go. The status bar tells how long until it saves"));
+            ImGui::BeginDisabled(false == EditorSettings.autosave());
+            int minutes{std::clamp(EditorSettings.autosave_minutes(), 1, 60)};
+            ImGui::SliderInt(STR_C("Every (min)##autosave"), &minutes, 1, 60);
+            EditorSettings.autosave_minutes(minutes);
+            if (ImGui::IsItemDeactivatedAfterEdit())
+                EditorSettings.save();
+            ImGui::EndDisabled();
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -3354,6 +3386,8 @@ bool editor_mode::save()
     {
         scene::Layers.terrain_directive(true);
     }
+    if (result.success)
+        saved_now();
     ui()->set_status(result.message, false == result.success);
     WriteLog("Editor: " + result.message, logtype::generic);
     return result.success;
@@ -6655,6 +6689,13 @@ void editor_mode::render_gizmo()
         return;
     }
 
+    // the events: the gizmo is on the ambient sound selected, not on a node
+    if (m_events_open)
+    {
+        render_events_gizmo();
+        return;
+    }
+
     if (ui()->mode() == nodebank_panel::TRACK && m_track_tab == track_tab::path && m_track_set.size() >= 2)
     {
         render_track_set_gizmo();
@@ -7781,8 +7822,14 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         break;
 
     case GLFW_KEY_DELETE:
-        // the chunks of the terrain selected, where the terrain is the field of work; else what's selected in the scenery
-        if (is_press(Action) && m_terrain_open && false == m_terrain_selection.empty())
+        // the ambient sound selected, where the events are the field of work; the chunks of the terrain selected, where the
+        // terrain is; else what's selected in the scenery
+        if (is_press(Action) && m_events_open)
+        {
+            if (false == ImGui::GetIO().WantTextInput)
+                events_delete();
+        }
+        else if (is_press(Action) && m_terrain_open && false == m_terrain_selection.empty())
             remove_selected_chunks();
         else if (is_press(Action))
             delete_selected();
@@ -7802,6 +7849,15 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         if (is_press(Action) && m_area_drawing.active)
         {
             area_finish(false);
+            break;
+        }
+        // the events: the sound being put given up, then the selected one deselected
+        if (is_press(Action) && m_events_open && (m_events.placing || m_events.selected >= 0))
+        {
+            if (m_events.placing)
+                m_events.placing = false;
+            else
+                m_events.selected = -1;
             break;
         }
         if (is_press(Action))
@@ -8343,7 +8399,8 @@ void editor_mode::render_change_history(){
                         s.action == EditorSnapshot::Action::RoadEdit ? "ROAD" :
                         s.action == EditorSnapshot::Action::Array ? "ARR" :
                         s.action == EditorSnapshot::Action::Terrain ? "TER" :
-                        s.action == EditorSnapshot::Action::Kilometrage ? "KM" : "OTH",
+                        s.action == EditorSnapshot::Action::Kilometrage ? "KM" :
+                        s.action == EditorSnapshot::Action::Sounds ? "SND" : "OTH",
                         s.node_name.empty() ? STR_C("(no name)") : s.node_name.c_str(),
                         s.position.x, s.position.y, s.position.z);
 

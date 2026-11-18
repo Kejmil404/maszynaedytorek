@@ -11,6 +11,8 @@ http://mozilla.org/MPL/2.0/.
 
 #include "application/uilayer.h"
 #include "application/editoruipanels.h"
+#include <string>
+#include <string_view>
 
 namespace scene
 {
@@ -181,6 +183,8 @@ class editor_ui : public ui_layer
 	static void register_settings();
 	// shows outcome of an operation in the layers window
 	void set_status(std::string const &Status, bool const Error = false);
+	// how long until the scenery saves itself, at the right of the status bar; empty with the autosave off
+	void set_autosave(std::string_view const Text) { m_autosave = Text; }
 	// a warning after an operation done: added to its status, shown by the cursor for a while
 	void set_notice(std::string const &Notice);
 	// the refusal or warning by the cursor taken away before its time, when what it tells of was taken back
@@ -241,6 +245,7 @@ class editor_ui : public ui_layer
 	bool m_refusalnotice{false}; // a warning rather than a refusal
 	double m_statustime{-100.0};
 	int m_savequeued{0}; // the frame of a save asked for from a field being typed in
+	std::string m_autosave;
 	bool m_tooloptionsopen{true};
 	bool m_inspectoropen{true};
 	bool m_sceneopen{true};

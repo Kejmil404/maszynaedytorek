@@ -14736,3 +14736,171 @@ msgstr "Nie udało się skopiować pliku do folderu sounds gry"
 
 msgid "The system has no file dialog the editor can open: type the path of the file"
 msgstr "System nie ma okna wyboru plików, które edytor może otworzyć: wpisz ścieżkę do pliku"
+
+msgid "The name %s is taken"
+msgstr "Nazwa %s jest zajęta"
+
+msgid "The sound renamed, its events and launchers with it"
+msgstr "Zmieniono nazwę dźwięku, a razem z nią nazwy jego eventów i launcherów"
+
+msgid "LMB: select a sound   Gizmo: move it   Del: delete   Esc: deselect"
+msgstr "LPM: zaznacz dźwięk   Gizmo: przesuń   Del: usuń   Esc: odznacz"
+
+msgid "Name##ambient"
+msgstr "Nazwa##ambient"
+
+msgid "The name of the sound node; its events and launchers are named after it. Letters, digits, _ and -"
+msgstr "Nazwa węzła dźwięku; od niej biorą nazwy jego eventy i launchery. Litery, cyfry, _ i -"
+
+msgid "Files##ambient"
+msgstr "Pliki##ambient"
+
+msgid "Playing##ambient"
+msgstr "Odtwarzanie##ambient"
+
+msgid "Launcher##ambient"
+msgstr "Launcher##ambient"
+
+msgid "Sound##ambientmain"
+msgstr "Dźwięk##ambientmain"
+
+msgid "Change...##ambientmain"
+msgstr "Zmień...##ambientmain"
+
+msgid "Or##ambientother"
+msgstr "Albo##ambientother"
+
+msgid "One more file...##ambient"
+msgstr "Jeszcze jeden plik...##ambient"
+
+msgid "With more files the scenery picks one of them at random each time it's loaded"
+msgstr "Przy kilku plikach sceneria przy każdym wczytaniu losuje jeden z nich"
+
+msgid "Before the loop##ambient"
+msgstr "Przed pętlą##ambient"
+
+msgid "After the loop##ambient"
+msgstr "Po pętli##ambient"
+
+msgid "Choose...##ambientbegin"
+msgstr "Wybierz...##ambientbegin"
+
+msgid "Choose...##ambientend"
+msgstr "Wybierz...##ambientend"
+
+msgid "Pitch varies by##ambient"
+msgstr "Rozrzut wysokości tonu##ambient"
+
+msgid "How far the pitch may differ, picked at random as the scenery loads; 0 leaves the slight difference the game gives every sound"
+msgstr "O ile może się różnić wysokość tonu, losowana przy wczytaniu scenerii; 0 zostawia lekki rozrzut, jaki gra daje każdemu dźwiękowi"
+
+msgid "Starts at##ambient"
+msgstr "Start od##ambient"
+
+msgid "Where in the file it starts to play, as a part of its length: 0 the beginning"
+msgstr "Od którego miejsca pliku zaczyna grać, jako część jego długości: 0 to początek"
+
+msgid "Once at an hour"
+msgstr "Raz o określonej godzinie"
+
+msgid "Once on a key, while the camera is near"
+msgstr "Raz na klawisz, gdy kamera jest blisko"
+
+msgid "At (HHMM)##ambient"
+msgstr "O (GGMM)##ambient"
+
+msgid "Delay (s)##ambient"
+msgstr "Opóźnienie (s)##ambient"
+
+msgid "How long after the launcher the sound starts (or stops)"
+msgstr "Ile po launcherze dźwięk zaczyna (albo przestaje) grać"
+
+msgid "Random delay up to (s)##ambient"
+msgstr "Losowe opóźnienie do (s)##ambient"
+
+msgid "A delay picked at random each time, added to the one above: a sound played every so often doesn't come like a clock"
+msgstr "Opóźnienie losowane za każdym razem i dodawane do powyższego: dźwięk grany co jakiś czas nie przychodzi jak w zegarku"
+
+msgid "Radio channel##ambient"
+msgstr "Kanał radiowy##ambient"
+
+msgid "0: heard at its place. A channel sends it over the radio of the trains tuned in to it instead"
+msgstr "0: słychać go w jego miejscu. Kanał wysyła go zamiast tego przez radio pociągów nastawionych na ten kanał"
+
+msgid "Set off within##ambient"
+msgstr "Uruchamiany w zasięgu##ambient"
+
+msgid "As far as it's heard"
+msgstr "Tak daleko, jak go słychać"
+
+msgid "A radius of its own"
+msgstr "Własny promień"
+
+msgid "Anywhere around the camera"
+msgstr "Wszędzie wokół kamery"
+
+msgid "Radius (m)##ambient"
+msgstr "Promień (m)##ambient"
+
+msgid "Key##ambient"
+msgstr "Klawisz##ambient"
+
+msgid "A letter or a digit which sets it off too, as long as the camera is near; a capital letter is the key with Shift"
+msgstr "Litera lub cyfra, która też go uruchamia, o ile kamera jest blisko; wielka litera to klawisz z Shiftem"
+
+msgid "Memory cell##ambient"
+msgstr "Komórka pamięci##ambient"
+
+msgid "It's set off only while this memory cell holds what's below; empty: no condition"
+msgstr "Uruchamia się tylko wtedy, gdy ta komórka pamięci zawiera to, co poniżej; puste: bez warunku"
+
+msgid "Text (* any)##ambient"
+msgstr "Tekst (* dowolny)##ambient"
+
+msgid "Value 1 (* any)##ambient"
+msgstr "Wartość 1 (* dowolna)##ambient"
+
+msgid "Value 2 (* any)##ambient"
+msgstr "Wartość 2 (* dowolna)##ambient"
+
+msgid "Give it a key: without one it's never set off"
+msgstr "Nadaj mu klawisz: bez niego nigdy się nie uruchomi"
+
+msgid "Autosaved a moment ago"
+msgstr "Autozapis przed chwilą"
+
+msgid "Autosaved %d min ago"
+msgstr "Autozapis %d min temu"
+
+msgid "Autosave: no changes"
+msgstr "Autozapis: brak zmian"
+
+msgid "Autosave in %d s"
+msgstr "Autozapis za %d s"
+
+msgid "Autosave in %d min"
+msgstr "Autozapis za %d min"
+
+msgid "Autosave: as soon as the tool is let go"
+msgstr "Autozapis: gdy tylko puścisz narzędzie"
+
+msgid "Autosave"
+msgstr "Autozapis"
+
+msgid "Save the scenery by itself"
+msgstr "Zapisuj scenerię automatycznie"
+
+msgid "Saves as Ctrl+S does, every so many minutes while there are changes not saved; it waits until the tool in hand is let go. The status bar tells how long until it saves"
+msgstr "Zapisuje tak jak Ctrl+S, co tyle minut, dopóki są niezapisane zmiany; czeka, aż puścisz używane narzędzie. Pasek statusu pokazuje, ile zostało do zapisu"
+
+msgid "Every (min)##autosave"
+msgstr "Co (min)##autosave"
+
+msgid "Remove the drive"
+msgstr "Usuń napęd"
+
+msgid "Takes the drive model away from the switch; Ctrl+Z puts it back"
+msgstr "Usuwa model napędu przy rozjeździe; Ctrl+Z przywraca go"
+
+msgid "Switch drive##inspector"
+msgstr "Napęd rozjazdu##inspector"

@@ -648,11 +648,20 @@ void editor_ui::render_()
 				else
 					ImGui::TextUnformatted(m_layerspanel.status.c_str());
 			}
+			// at the right: the autosave, then the node selected
+			std::string label;
 			if (m_node != nullptr)
+				label = std::string{STR_C("Selected:")} + " " + (m_node->name().empty() ? std::string{STR_C("(no name)")} : m_node->name());
+			auto const spacing{ImGui::GetStyle().ItemSpacing.x};
+			auto const selected{label.empty() ? 0.0f : ImGui::CalcTextSize(label.c_str()).x + spacing * 2.0f};
+			if (false == m_autosave.empty())
 			{
-				auto const name{m_node->name().empty() ? std::string{STR_C("(no name)")} : m_node->name()};
-				auto const label{std::string{STR_C("Selected:")} + " " + name};
-				ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - ImGui::CalcTextSize(label.c_str()).x - ImGui::GetStyle().ItemSpacing.x * 2.0f));
+				ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - selected - ImGui::CalcTextSize(m_autosave.c_str()).x - spacing * (label.empty() ? 2.0f : 4.0f)));
+				ImGui::TextDisabled("%s", m_autosave.c_str());
+			}
+			if (false == label.empty())
+			{
+				ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - selected));
 				ImGui::TextUnformatted(label.c_str());
 			}
 			ImGui::EndMenuBar();

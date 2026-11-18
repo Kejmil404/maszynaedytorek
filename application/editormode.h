@@ -81,10 +81,30 @@ struct editor_mode_ambient
 	glm::dvec3 location{0.0};
 	std::string file; // as the sound node gives it: from the sounds folder of the game
 	float range{150.0f}; // m, heard as far as this, and set off when the camera comes this near
-	int play{0}; // 0: in a loop, 1: once every so many seconds, 2: in a loop between two hours
+	int play{0}; // 0: in a loop, 1: once every so many seconds, 2: in a loop between two hours, 3: once at an hour, 4: once on a key
 	float every{60.0f}; // s
 	int from{600}; // HHMM
 	int to{2000};
+	// the sound node: more files the node picks one of at random each time the scenery loads, the sounds before and after the
+	// loop, how much the pitch varies (0..1) and where in the file it starts (0..1)
+	std::vector<std::string> others;
+	std::string begin;
+	std::string end;
+	float pitch{0.0f};
+	float start{0.0f};
+	// the events: s of delay, s of random delay at most, the radio channel the sound goes out on (0: none)
+	float delay{0.0f};
+	float random{0.0f};
+	int channel{0};
+	// the launcher: m it's set off within (0: as far as it's heard, -1: anywhere), the key which sets it off too, the memory
+	// cell it waits for (its text and values, * for any)
+	float reach{0.0f};
+	std::string key;
+	std::string cell;
+	std::string text{"*"};
+	std::string value1{"*"};
+	std::string value2{"*"};
+	bool operator==(editor_mode_ambient const &) const = default;
 };
 
 class editor_mode : public application_mode, private editor_track::observer, private editor_services
@@ -148,7 +168,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	struct stored_profile;
 	struct EditorSnapshot
 	{
-		enum class Action { Move, Rotate, Scale, Add, Delete, TrackEdit, Other, RoadEdit, Array, Bend, Terrain, Kilometrage };
+		enum class Action { Move, Rotate, Scale, Add, Delete, TrackEdit, Other, RoadEdit, Array, Bend, Terrain, Kilometrage, Sounds };
 		// copy of a model an array made
 		struct array_copy
 		{
@@ -188,6 +208,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::optional<std::vector<switch_store::record>> switch_records; // the kept switches changed too, these were the ones before
 		std::optional<srk_hand_joints> hand_joints; // the joints of a station put by hand changed too, these were the ones before
 		std::optional<kilometrage::state> kilometrage; // the kilometrage before the change (Action::Kilometrage)
+		std::optional<std::vector<editor_mode_ambient>> sounds; // the ambient sounds before the change (Action::Sounds)
 		std::vector<array_copy> copies; // models an array added to the one it was made of
 		bool joined{false}; // undone and redone together with the change before it
 		std::shared_ptr<terrain_streamer::change const> terrain; // the heightmap terrain from before the change (Action::Terrain)
@@ -1164,10 +1185,14 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::vector<ambient_sound> sounds;
 		int selected{-1};
 		bool placing{false}; // the next click puts a new sound
-		bool moving{false}; // the next click moves the selected one
 		std::array<char, 512> file{}; // of the sound to be put
 		float height{2.0f}; // m over the ground
 		std::future<editor_file_dialog::result> dialog;
+		int dialog_for{0}; // what the file chosen goes to: 0 the sound to be put, 1 the file of the selected one, 2 one more of its files, 3 its sound before, 4 after
+		std::array<char, 64> rename{}; // the new name of the selected one
+		int renaming{-1};
+		std::vector<ambient_sound> last; // as they were the frame before: a change is told by them
+		std::optional<std::vector<ambient_sound>> base; // as they were before the change being made, until it's done
 		std::shared_ptr<sound_source> preview;
 		int previewing{-1};
 		std::string status;
@@ -1178,12 +1203,31 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void render_events_tool_options();
 	void render_events_selection();
 	void render_ambient_sound(ambient_sound &Sound);
+	void render_ambient_files(ambient_sound &Sound);
+	void render_ambient_play(ambient_sound &Sound);
+	void render_ambient_launcher(ambient_sound &Sound);
+	void events_browse(int const For);
+	void events_chosen();
+	bool events_rename(ambient_sound &Sound, std::string const &Name);
+	void events_delete();
+	// a change of the sounds made in a frame, when it's done, goes to the history as a step of its own
+	void events_track_changes();
+	void restore_sounds(EditorSnapshot &Snapshot);
+	void render_events_gizmo();
 	bool events_click();
 	void draw_events_overlay();
 	void events_listen(int const Index);
 	void events_place(glm::dvec3 const &Where);
 	// the file of the ambient sounds written for the save, and its include put among Rootstatements when it isn't there yet
 	bool ambient_sounds(std::vector<std::string> &Rootstatements);
+	// the autosave: the step of the history the scenery was saved at, when its time comes, and when it saved last
+	std::uint64_t m_saved_serial{0};
+	std::optional<std::chrono::steady_clock::time_point> m_autosave_due;
+	std::optional<std::chrono::steady_clock::time_point> m_autosaved;
+	bool unsaved_changes() const;
+	void saved_now();
+	void autosave_update();
+	bool autosave_idle() const;
 	work_area current_work_area() const;
 	void choose_work_area(work_area const Area);
 	void render_workspaces();
@@ -2801,6 +2845,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		int index{0};
 	};
 	std::optional<switch_drive> find_switch_drive(TTrack const &Switch, bool Wait = true);
+	// the drive of a switch, in the turnout tool and in the Inspector: the one standing by it, or one to be put
+	void render_switch_drive(TTrack &Switch, bool const Named);
+	void render_standing_drive(TTrack &Switch, switch_drive const &Drive);
 	// the drives standing in the scenery by the switch each is set to, read from the files once a frame for all the switches
 	std::map<std::string, switch_drive> const &switch_drives_standing(bool Wait = true);
 	struct drives_standing

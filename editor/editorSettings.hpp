@@ -83,6 +83,11 @@ public:
 	// the functions of the editor still being tried out are shown: the field of work of the events
 	bool experimental() const { return m_experimental; }
 	void experimental(bool Experimental) { m_experimental = Experimental; }
+	// the scenery saved by itself every so many minutes while it has changes not saved; off unless turned on
+	bool autosave() const { return m_autosave; }
+	void autosave(bool Autosave) { m_autosave = Autosave; }
+	int autosave_minutes() const { return m_autosave_minutes; }
+	void autosave_minutes(int Minutes) { m_autosave_minutes = Minutes; }
 
 	// the tutorial (Help > Tutorial) opens by itself when an editor session starts
 	bool first_steps() const { return m_first_steps; }
@@ -143,6 +148,8 @@ private:
 	float m_panel_brightness{0.0f};
 	float m_panel_transparency{0.0f};
 	bool m_experimental{false};
+	bool m_autosave{false};
+	int m_autosave_minutes{10};
 	bool m_first_steps{true};
 	bool m_terrain_offer{true};
 	bool m_terrain_buried_ask{true};
