@@ -199,6 +199,7 @@ class editor_ui : public ui_layer
 	void render_windows_menu() override;
 	void render_tools_menu() override;
 	int palette() const override;
+	float panel_brightness() const override;
 	void render_dockspace() override;
 	void render_() override;
 	// docks the windows of the editor in their default places

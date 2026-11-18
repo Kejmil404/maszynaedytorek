@@ -143,6 +143,8 @@ bool editorSettings::load()
 			parse(value, m_nodebank_card);
 		else if (key == "colours")
 			parse(value, m_palette);
+		else if (key == "panel_brightness")
+			parse(value, m_panel_brightness);
 		else if (key == "first_steps")
 			m_first_steps = (value == "1");
 		else if (key == "terrain_offer")
@@ -254,6 +256,7 @@ bool editorSettings::save()
 	stream << "nodebank_previews " << (m_nodebank_previews ? 1 : 0) << "\n";
 	stream << "nodebank_card " << m_nodebank_card << "\n";
 	stream << "colours " << m_palette << "\n";
+	stream << "panel_brightness " << m_panel_brightness << "\n";
 	stream << "first_steps " << (m_first_steps ? 1 : 0) << "\n";
 	stream << "terrain_offer " << (m_terrain_offer ? 1 : 0) << "\n";
 	stream << "terrain_buried_ask " << (m_terrain_buried_ask ? 1 : 0) << "\n";

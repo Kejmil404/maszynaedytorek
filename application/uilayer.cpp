@@ -8,6 +8,8 @@ http://mozilla.org/MPL/2.0/.
 */
 
 #include "stdafx.h"
+#include <array>
+#include <cmath>
 #include "application/uilayer.h"
 
 #include <utility>
@@ -30,6 +32,7 @@ ImGuiIO *ui_layer::m_imguiio{nullptr};
 GLint ui_layer::m_textureunit{GL_TEXTURE0};
 bool ui_layer::m_cursorvisible;
 int ui_layer::m_palette{0};
+float ui_layer::m_brightness{0.0f};
 ImFont *ui_layer::font_default{nullptr};
 ImFont *ui_layer::font_mono{nullptr};
 ImFont *ui_layer::font_loading{nullptr};
@@ -182,23 +185,59 @@ void create_viewport_window(ImGuiViewport *Viewport)
 }
 } // namespace
 
-void ui_layer::imgui_colors(int const Palette)
+namespace
+{
+// the accents of the palettes: selection and active elements, the marks (checkmarks, the line of the active tab), hovered items
+struct palette_accent
+{
+	int accent;
+	int bright;
+	int dim;
+};
+// 0: green, as the simulator and the starter; 1: amber, of the editor; then the other ones the editor offers
+std::array<palette_accent, ui_layer::palette_count> constexpr accents{{
+    {0x177f00, 0x41c400, 0x164b0e}, // green
+    {0xb07a1c, 0xe5a73a, 0x5a4319}, // amber
+    {0x2367b3, 0x4a9ef0, 0x1b3c63}, // blue
+    {0xa83232, 0xe65a5a, 0x5a2121}, // red
+    {0x7a3fb0, 0xa977e6, 0x432663}, // purple
+    {0x14857f, 0x2fc4bb, 0x134a47}, // teal
+    {0xb0386f, 0xe66aa3, 0x5e2340}, // pink
+    {0x6b737d, 0xa6aeb8, 0x3f444b}, // grey
+}};
+
+// a colour of the panels brought towards white by Share (0..1)
+int lightened(int const Color, float const Share)
+{
+	auto const part = [Color, Share](int const Shift) {
+		auto const value{(Color >> Shift) & 0xff};
+		return static_cast<int>(std::lround(value + (255 - value) * Share)) << Shift;
+	};
+	return part(16) | part(8) | part(0);
+}
+} // namespace
+
+void ui_layer::imgui_colors(int const Palette, float const Brightness)
 {
 	m_palette = Palette;
+	m_brightness = Brightness;
 	auto const rgb = [](int const Color, float const Alpha = 1.0f) {
 		return ImVec4(((Color >> 16) & 0xff) / 255.0f, ((Color >> 8) & 0xff) / 255.0f, (Color & 0xff) / 255.0f, Alpha);
 	};
-	auto const editor{Palette == 1};
-	// palette shared with the MaSzyna starter: flat dark panels, thin borders, green accents; the one of the editor
-	// has amber accents on cooler grey panels
-	int const panel{editor ? 0x1f2226 : 0x1e2327}; // window background
-	int const base{editor ? 0x1b1d21 : 0x15171b}; // darker background, between panels
-	int const header{editor ? 0x2c3036 : 0x2a3036}; // section headers, hovered items
-	int const border{editor ? 0x3a3f47 : 0x3a424a};
-	int const field{editor ? 0x15171a : 0x121517}; // input fields, combos
-	int const accent{editor ? 0xb07a1c : 0x177f00}; // selection, active elements
-	int const accentbright{editor ? 0xe5a73a : 0x41c400}; // marks: checkmarks, active tab underline
-	int const accentdim{editor ? 0x5a4319 : 0x164b0e};
+	// palette shared with the MaSzyna starter: flat dark panels, thin borders, green accents; the others are the editor's,
+	// their accents on cooler grey panels. a palette the build doesn't know is the green one
+	auto const known{Palette >= 0 && Palette < palette_count ? Palette : 0};
+	auto const editor{known != 0};
+	// the panels can be made lighter (the settings of the editor); the text stays as it is, light on them
+	auto const light{std::clamp(Brightness, 0.0f, 1.0f) * 0.35f};
+	int const panel{lightened(editor ? 0x1f2226 : 0x1e2327, light)}; // window background
+	int const base{lightened(editor ? 0x1b1d21 : 0x15171b, light)}; // darker background, between panels
+	int const header{lightened(editor ? 0x2c3036 : 0x2a3036, light)}; // section headers, hovered items
+	int const border{lightened(editor ? 0x3a3f47 : 0x3a424a, light)};
+	int const field{lightened(editor ? 0x15171a : 0x121517, light)}; // input fields, combos
+	int const accent{accents[known].accent}; // selection, active elements
+	int const accentbright{accents[known].bright}; // marks: checkmarks, active tab underline
+	int const accentdim{accents[known].dim};
 
 	ImVec4 *colors = ImGui::GetStyle().Colors;
 
@@ -261,7 +300,7 @@ void ui_layer::imgui_colors(int const Palette)
 
 void ui_layer::imgui_style()
 {
-	imgui_colors(0);
+	imgui_colors(0, 0.0f);
 
 	// flat, square elements with thin borders
 	auto &style = ImGui::GetStyle();
@@ -543,8 +582,8 @@ void ui_layer::render_internal()
 void ui_layer::begin_ui_frame()
 {
 	// the colours follow the ui of the mode drawn
-	if (palette() != m_palette)
-		imgui_colors(palette());
+	if (palette() != m_palette || panel_brightness() != m_brightness)
+		imgui_colors(palette(), panel_brightness());
 	begin_ui_frame_internal();
 	render_dockspace();
 	m_dockspaceframe = ImGui::GetFrameCount();

@@ -21,7 +21,9 @@ http://mozilla.org/MPL/2.0/.
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <numbers>
 #include <optional>
+#include <ranges>
 
 namespace editor_dem
 {
@@ -446,6 +448,143 @@ bool load(std::filesystem::path const &Path, axes const Axes, glm::dvec2 const &
 	}
 	std::string_view const text{reinterpret_cast<char const *>(data.data()), data.size()}; // NOSONAR: the bytes of the file read as its text
 	return load_text(text, text_of(Path.filename()), Axes, Origin, Out, Error);
+}
+
+namespace
+{
+// the cells of the map of the distances: at most this many a side, so a folder of sheets keeps it to a few megabytes
+int constexpr largest_side{2048};
+
+// the distances of the cells with data to the nearest one without, both ways over the map (chamfer 1, sqrt 2); beyond the map
+// there's no data
+void chamfer(std::vector<float> &Distance, int const Columns, int const Rows, float const Cell)
+{
+	auto const diagonal{Cell * std::numbers::sqrt2_v<float>};
+	auto const at = [&Distance, Columns, Rows](int const C, int const R) { return C < 0 || R < 0 || C >= Columns || R >= Rows ? 0.0f : Distance[static_cast<std::size_t>(R) * Columns + C]; };
+	auto const relax = [&Distance, &at, Columns, Cell, diagonal](int const C, int const R, int const Step) {
+		auto &value{Distance[static_cast<std::size_t>(R) * Columns + C]};
+		if (value <= 0.0f)
+			return;
+		value = std::min({value, at(C - Step, R) + Cell, at(C, R - Step) + Cell, at(C - Step, R - Step) + diagonal, at(C + Step, R - Step) + diagonal});
+	};
+	for (int r = 0; r < Rows; ++r)
+		for (int c = 0; c < Columns; ++c)
+			relax(c, r, 1);
+	for (int r = Rows - 1; r >= 0; --r)
+		for (int c = Columns - 1; c >= 0; --c)
+			relax(c, r, -1);
+}
+} // namespace
+
+void mosaic::build(std::vector<std::shared_ptr<grid const>> Grids)
+{
+	std::erase_if(Grids, [](std::shared_ptr<grid const> const &Grid) { return Grid == nullptr || false == Grid->valid(); });
+	m_grids = std::move(Grids);
+	m_distance.clear();
+	m_columns = 0;
+	m_rows = 0;
+	if (m_grids.empty())
+		return;
+	m_low = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
+	m_high = {std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest()};
+	for (auto const &sheet : m_grids)
+	{
+		m_low = glm::min(m_low, glm::dvec2{sheet->west_edge(), sheet->south_edge()});
+		m_high = glm::max(m_high, glm::dvec2{sheet->east_edge(), sheet->north_edge()});
+	}
+	auto const size{m_high - m_low};
+	m_cell = std::max({1.0, pixel(), std::max(size.x, size.y) / largest_side});
+	m_columns = std::max(1, static_cast<int>(std::ceil(size.x / m_cell)));
+	m_rows = std::max(1, static_cast<int>(std::ceil(size.y / m_cell)));
+	// a cell with data: the distance to be found, without: 0
+	m_distance.assign(static_cast<std::size_t>(m_columns) * m_rows, 0.0f);
+	for (int r = 0; r < m_rows; ++r)
+		for (int c = 0; c < m_columns; ++c)
+		{
+			double height{0.0};
+			if (sample(m_low.x + (c + 0.5) * m_cell, m_high.y - (r + 0.5) * m_cell, height))
+				m_distance[static_cast<std::size_t>(r) * m_columns + c] = std::numeric_limits<float>::max();
+		}
+	chamfer(m_distance, m_columns, m_rows, static_cast<float>(m_cell));
+}
+
+bool mosaic::sample(double const East, double const North, double &Height) const
+{
+	return std::ranges::any_of(m_grids | std::views::reverse, [East, North, &Height](std::shared_ptr<grid const> const &Sheet) { return Sheet->sample(East, North, Height); });
+}
+
+float mosaic::distance_at(int const Column, int const Row) const
+{
+	if (Column < 0 || Row < 0 || Column >= m_columns || Row >= m_rows)
+		return 0.0f;
+	return m_distance[static_cast<std::size_t>(Row) * m_columns + Column];
+}
+
+double mosaic::inside(double const East, double const North) const
+{
+	if (m_distance.empty())
+		return 0.0;
+	// between the middles of the cells; the distance of a cell is to the middle of the nearest one without data, half a cell
+	// beyond the edge
+	auto const column{(East - m_low.x) / m_cell - 0.5};
+	auto const row{(m_high.y - North) / m_cell - 0.5};
+	auto const c0{static_cast<int>(std::floor(column))};
+	auto const r0{static_cast<int>(std::floor(row))};
+	auto const fc{column - c0};
+	auto const fr{row - r0};
+	auto const top{std::lerp(static_cast<double>(distance_at(c0, r0)), static_cast<double>(distance_at(c0 + 1, r0)), fc)};
+	auto const bottom{std::lerp(static_cast<double>(distance_at(c0, r0 + 1)), static_cast<double>(distance_at(c0 + 1, r0 + 1)), fc)};
+	return std::max(0.0, std::lerp(top, bottom, fr) - 0.5 * m_cell);
+}
+
+std::vector<glm::dvec2> mosaic::seam() const
+{
+	std::vector<glm::dvec2> points;
+	for (int r = 0; r < m_rows; ++r)
+		for (int c = 0; c < m_columns; ++c)
+		{
+			// a cell with data beside one without
+			if (distance_at(c, r) <= 0.0f || (distance_at(c - 1, r) > 0.0f && distance_at(c + 1, r) > 0.0f && distance_at(c, r - 1) > 0.0f && distance_at(c, r + 1) > 0.0f))
+				continue;
+			points.emplace_back(m_low.x + (c + 0.5) * m_cell, m_high.y - (r + 0.5) * m_cell);
+		}
+	// a few thousand are enough for the median
+	if (points.size() > 4000)
+	{
+		auto const step{points.size() / 4000 + 1};
+		std::vector<glm::dvec2> fewer;
+		for (std::size_t i = 0; i < points.size(); i += step)
+			fewer.push_back(points[i]);
+		points = std::move(fewer);
+	}
+	return points;
+}
+
+double mosaic::pixel() const
+{
+	double result{std::numeric_limits<double>::max()};
+	for (auto const &sheet : m_grids)
+		result = std::min(result, sheet->pixel);
+	return m_grids.empty() ? 1.0 : result;
+}
+
+glm::dvec2 mosaic::range() const
+{
+	glm::dvec2 result{std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest()};
+	for (auto const &sheet : m_grids)
+	{
+		auto const sheetrange{sheet->range()};
+		result = {std::min(result.x, sheetrange.x), std::max(result.y, sheetrange.y)};
+	}
+	return result;
+}
+
+std::size_t mosaic::points() const
+{
+	std::size_t result{0};
+	for (auto const &sheet : m_grids)
+		result += sheet->known();
+	return result;
 }
 
 double blend(double const Inside, double const Feather)

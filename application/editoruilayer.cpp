@@ -1041,6 +1041,11 @@ int editor_ui::palette() const
 	return EditorSettings.palette();
 }
 
+float editor_ui::panel_brightness() const
+{
+	return EditorSettings.panel_brightness();
+}
+
 void editor_ui::set_file_actions(std::function<void()> Save, std::function<void()> Export)
 {
 	m_save = Save;

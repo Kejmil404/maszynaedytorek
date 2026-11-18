@@ -9,6 +9,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "world/TrackSleepers.h"
+#include <numbers>
 #include <filesystem>
 #include <format>
 #include <iterator>
@@ -1748,6 +1749,7 @@ bool editor_mode::update()
     if (m_roadtool.box.active && false == ImGui::GetIO().MouseDown[0])
         road_box_finish();
     draw_road_box();
+    draw_snap_mark();
     render_context_menu();
     steps.step("windows");
 
@@ -1787,13 +1789,18 @@ void editor_mode::render_settings()
 
             ImGui::Separator();
             ImGui::TextUnformatted(STR_C("Colours of the editor"));
-            const char *palettes[] = {STR_C("Green, as the rest of the simulator"), STR_C("Amber, of the editor")};
-            int palette = std::clamp(EditorSettings.palette(), 0, 1);
-            if (ImGui::Combo("##palette", &palette, palettes, IM_ARRAYSIZE(palettes)))
+            std::array const palettes{STR_C("Green, as the rest of the simulator"), STR_C("Amber, of the editor"), STR_C("Blue"), STR_C("Red"), STR_C("Purple"), STR_C("Teal"), STR_C("Pink"), STR_C("Grey")};
+            int palette = std::clamp(EditorSettings.palette(), 0, static_cast<int>(palettes.size()) - 1);
+            if (ImGui::Combo("##palette", &palette, palettes.data(), static_cast<int>(palettes.size())))
             {
                 EditorSettings.palette(palette);
                 EditorSettings.save();
             }
+            float brightness{EditorSettings.panel_brightness() * 100.0f};
+            ImGui::SliderFloat(STR_C("Brightness of the panels"), &brightness, 0.0f, 100.0f, "%.0f%%");
+            if (ImGui::IsItemDeactivatedAfterEdit())
+                EditorSettings.save();
+            EditorSettings.panel_brightness(std::clamp(brightness / 100.0f, 0.0f, 1.0f));
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -6521,6 +6528,29 @@ void editor_mode::render_gizmo_options()
         if (m_gizmo_snap < 0.0f)
             m_gizmo_snap = 0.0f;
     }
+    // drawn to the other models while moved
+    if (m_gizmo_op == gizmo_operation::translate && ui()->mode() != nodebank_panel::TRACK)
+    {
+        ImGui::SameLine();
+        ImGui::Checkbox(STR_C("Snap to objects"), &m_snap_objects);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", STR_C("While moved with the gizmo the model is drawn to the other models; Alt held: not"));
+        if (m_snap_objects)
+        {
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(130.0f);
+            std::array const kinds{STR_C("Points"), STR_C("Middles"), STR_C("Edge to edge")};
+            m_snap_kind = std::clamp(m_snap_kind, 0, 2);
+            ImGui::Combo("##snapkind", &m_snap_kind, kinds.data(), static_cast<int>(kinds.size()));
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", STR_C("Points: the point of the model nearest to the cursor where you took it goes onto a point of another model under the cursor.\nMiddles: onto the place of another model.\nEdge to edge: its side against the side of a model turned square to it, flush with its end where they're near"));
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(110.0f);
+            ImGui::SliderFloat(STR_C("Sensitivity"), &m_snap_pixels, 3.0f, 60.0f, "%.0f px");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", STR_C("How near, on the screen, the model is drawn from"));
+        }
+    }
     // the scale of the whole selection: the models together, with the gizmo or by a factor typed in
     if (m_gizmo_op == gizmo_operation::scale && ui()->mode() != nodebank_panel::TRACK && selected_nodes().size() > 1)
     {
@@ -6700,7 +6730,12 @@ void editor_mode::render_gizmo()
         }
         else
         {
-            glm::dvec3 const newworldpos = camerapos + glm::dvec3(newtranslation[0], newtranslation[1], newtranslation[2]);
+            glm::dvec3 newworldpos = camerapos + glm::dvec3(newtranslation[0], newtranslation[1], newtranslation[2]);
+            // drawn to the other models, unless Alt is held; the gizmo goes on from where the mouse is, so it lets go again
+            if (m_snap_objects && model != nullptr && false == Global.altState && ui()->mode() != nodebank_panel::TRACK)
+                newworldpos = snap_position(*model, newworldpos);
+            else
+                m_snap.snapped = false;
             // pass Snaptoground == true so the gizmo's Y component is applied (free 3D move)
             auto const before{m_node->location()};
             m_editor.translate(m_node, newworldpos, true);
@@ -6710,7 +6745,234 @@ void editor_mode::render_gizmo()
     else
     {
         m_gizmo_using = false;
+        m_snap.active = false;
+        m_snap.snapped = false;
     }
+}
+
+namespace
+{
+// a vector on the ground turned about the vertical by Angle (radians), as glm::rotate turns the models
+glm::dvec2 turned(glm::dvec2 const &Vector, double const Angle)
+{
+	auto const c{std::cos(Angle)};
+	auto const s{std::sin(Angle)};
+	return {c * Vector.x + s * Vector.y, -s * Vector.x + c * Vector.y};
+}
+
+// m, how much farther the other models are looked for than the model held reaches
+double constexpr snap_reach{60.0};
+// the models around which are looked at, the nearest ones
+std::size_t constexpr snap_models{300};
+std::size_t constexpr snap_points{200'000};
+// radians, how far from square two models may be turned to each other to be set edge to edge
+double constexpr snap_square{2.0 * std::numbers::pi / 180.0};
+
+// the correction which sets the box Low..High (along the axes of a neighbour, from its place) against the box of the neighbour,
+// side to side along one axis and flush along the other where they're near; zero where they aren't within Tolerance
+glm::dvec2 edge_correction(glm::dvec2 const &Low, glm::dvec2 const &High, glm::dvec2 const &NeighbourLow, glm::dvec2 const &NeighbourHigh, double const Tolerance, double &Gap)
+{
+	glm::dvec2 best{0.0};
+	Gap = Tolerance;
+	for (int axis = 0; axis < 2; ++axis)
+	{
+		auto const other{1 - axis};
+		// side by side, they have to face each other along the other axis
+		if (High[other] < NeighbourLow[other] - Tolerance || Low[other] > NeighbourHigh[other] + Tolerance)
+			continue;
+		for (auto const gap : {NeighbourHigh[axis] - Low[axis], NeighbourLow[axis] - High[axis]})
+		{
+			if (std::abs(gap) >= Gap)
+				continue;
+			Gap = std::abs(gap);
+			best = {0.0, 0.0};
+			best[axis] = gap;
+			// flush along the other axis too, the nearer of the two ends, where it's near
+			auto const ends{std::array{NeighbourLow[other] - Low[other], NeighbourHigh[other] - High[other]}};
+			auto const flush{std::abs(ends[0]) < std::abs(ends[1]) ? ends[0] : ends[1]};
+			if (std::abs(flush) < Tolerance)
+				best[other] = flush;
+		}
+	}
+	return best;
+}
+} // namespace
+
+editor_mode::snap_neighbour editor_mode::snap_box(TAnimModel const &Model)
+{
+	snap_neighbour box;
+	box.model = &Model;
+	box.location = Model.location();
+	box.yaw = glm::radians(static_cast<double>(Model.Angles().y));
+	if (Model.Model() == nullptr)
+		return box;
+	// the points as the model has them, turned about the other axes and scaled, but not about the vertical
+	glm::vec3 const angles{Model.Angles()};
+	glm::dmat4 matrix(1.0);
+	if (angles.x != 0.0f)
+		matrix = glm::rotate(matrix, glm::radians(static_cast<double>(angles.x)), glm::dvec3(1.0, 0.0, 0.0));
+	if (angles.z != 0.0f)
+		matrix = glm::rotate(matrix, glm::radians(static_cast<double>(angles.z)), glm::dvec3(0.0, 0.0, 1.0));
+	matrix = glm::scale(matrix, glm::dvec3(Model.Scale()));
+	std::vector<world_triangle> triangles;
+	gather_submodel_triangles(Model.Model()->Root, matrix, triangles);
+	if (triangles.empty())
+		return box;
+	box.low = glm::dvec2{std::numeric_limits<double>::max()};
+	box.high = glm::dvec2{std::numeric_limits<double>::lowest()};
+	box.bottom = std::numeric_limits<double>::max();
+	box.top = std::numeric_limits<double>::lowest();
+	for (auto const &triangle : triangles)
+		for (auto const &point : triangle)
+		{
+			box.low = glm::min(box.low, glm::dvec2{point.x, point.z});
+			box.high = glm::max(box.high, glm::dvec2{point.x, point.z});
+			box.bottom = std::min(box.bottom, point.y);
+			box.top = std::max(box.top, point.y);
+		}
+	return box;
+}
+
+void editor_mode::snap_begin(TAnimModel const &Model)
+{
+	auto &snap{m_snap};
+	snap = {};
+	snap.active = true;
+	snap.held = &Model;
+	snap.box = snap_box(Model);
+	auto const reach{static_cast<double>(Model.radius()) + snap_reach};
+	auto const moving{selected_nodes()};
+	// the nearest models around, those which don't move with it
+	std::vector<std::pair<double, TAnimModel const *>> around;
+	for (auto const *other : simulation::Instances.sequence())
+	{
+		if (other == nullptr || other == &Model || false == other->visible() || other->Model() == nullptr || std::ranges::find(moving, other) != moving.end())
+			continue;
+		if (auto const distance{glm::distance(other->location(), Model.location())}; distance <= reach + other->radius())
+			around.emplace_back(distance, other);
+	}
+	std::ranges::sort(around, {}, &std::pair<double, TAnimModel const *>::first);
+	if (around.size() > snap_models)
+		around.resize(snap_models);
+	for (auto const &[distance, other] : around)
+	{
+		snap.neighbours.push_back(snap_box(*other));
+		if (m_snap_kind != 0 || snap.points.size() >= snap_points)
+			continue;
+		std::vector<world_triangle> triangles;
+		gather_submodel_triangles(other->Model()->Root, instance_matrix(*other), triangles);
+		for (auto const &triangle : triangles)
+			snap.points.insert(snap.points.end(), triangle.begin(), triangle.end());
+	}
+	if (m_snap_kind != 0)
+		return;
+	// the point of the model held nearest to the cursor goes onto the point it's drawn to
+	std::vector<world_triangle> own;
+	gather_submodel_triangles(Model.Model()->Root, instance_matrix(Model), own);
+	screen_projection const projection;
+	auto const &io{ImGui::GetIO()};
+	auto nearest{std::numeric_limits<float>::max()};
+	for (auto const &triangle : own)
+		for (auto const &point : triangle)
+		{
+			ImVec2 at;
+			if (false == projection.project(point, at))
+				continue;
+			if (auto const distance{std::hypot(at.x - io.MousePos.x, at.y - io.MousePos.y)}; distance < nearest)
+			{
+				nearest = distance;
+				snap.source = point - Model.location();
+			}
+		}
+}
+
+glm::dvec3 editor_mode::snap_position(TAnimModel const &Model, glm::dvec3 const &Free)
+{
+	auto &snap{m_snap};
+	snap.snapped = false;
+	if (false == snap.active || snap.held != &Model)
+		snap_begin(Model);
+	screen_projection const projection;
+	auto const &io{ImGui::GetIO()};
+	auto const pixels{static_cast<double>(m_snap_pixels)};
+	auto const near_cursor = [&projection, &io, pixels](glm::dvec3 const &Point, double &Distance) {
+		ImVec2 at;
+		if (false == projection.project(Point, at))
+			return false;
+		Distance = std::hypot(at.x - io.MousePos.x, at.y - io.MousePos.y);
+		return Distance < pixels;
+	};
+	if (m_snap_kind == 0 || m_snap_kind == 1)
+	{
+		// the point, or the middle of a model, nearest to the cursor
+		auto best{pixels};
+		glm::dvec3 result{Free};
+		auto const consider = [&best, &result, &snap, &near_cursor](glm::dvec3 const &Target, glm::dvec3 const &Source) {
+			if (double distance{0.0}; near_cursor(Target, distance) && distance < best)
+			{
+				best = distance;
+				result = Target - Source;
+				snap.snapped = true;
+				snap.mark = Target;
+			}
+		};
+		if (m_snap_kind == 0)
+			std::ranges::for_each(snap.points, [&](glm::dvec3 const &Point) { consider(Point, snap.source); });
+		else
+			std::ranges::for_each(snap.neighbours, [&](snap_neighbour const &Other) { consider(Other.location, glm::dvec3{0.0}); });
+		return result;
+	}
+	// edge to edge: the tolerance on the ground at the place of the model, as many metres as the pixels are there
+	ImVec2 here;
+	ImVec2 beside;
+	glm::dvec3 const right{glm::dvec3{Global.pCamera.Pos} - Free};
+	auto const side{glm::normalize(glm::cross(glm::dvec3{0.0, 1.0, 0.0}, glm::length(right) > 1e-6 ? right : glm::dvec3{0.0, 0.0, 1.0}))};
+	if (false == projection.project(Free, here) || false == projection.project(Free + side, beside))
+		return Free;
+	auto const perpixel{1.0 / std::max(1e-3, static_cast<double>(std::hypot(beside.x - here.x, beside.y - here.y)))};
+	auto const tolerance{pixels * perpixel};
+	auto best{tolerance};
+	glm::dvec3 result{Free};
+	for (auto const &other : snap.neighbours)
+	{
+		// square to each other, the model held in the axes of the other one
+		auto const difference{snap.box.yaw - other.yaw};
+		auto const quarter{std::round(difference / (std::numbers::pi * 0.5))};
+		if (std::abs(difference - quarter * std::numbers::pi * 0.5) > snap_square || other.high.x <= other.low.x)
+			continue;
+		// the box of the model held in the axes of the other one: its corners turned by the quarters between them
+		auto const offset{turned(glm::dvec2{Free.x - other.location.x, Free.z - other.location.z}, -other.yaw)};
+		glm::dvec2 low{std::numeric_limits<double>::max()};
+		glm::dvec2 high{std::numeric_limits<double>::lowest()};
+		for (auto const &corner : {glm::dvec2{snap.box.low.x, snap.box.low.y}, glm::dvec2{snap.box.high.x, snap.box.low.y}, glm::dvec2{snap.box.low.x, snap.box.high.y}, glm::dvec2{snap.box.high.x, snap.box.high.y}})
+		{
+			auto const placed{offset + turned(corner, quarter * std::numbers::pi * 0.5)};
+			low = glm::min(low, placed);
+			high = glm::max(high, placed);
+		}
+		double gap{0.0};
+		auto const correction{edge_correction(low, high, other.low, other.high, best, gap)};
+		if (correction == glm::dvec2{0.0} || gap >= best)
+			continue;
+		best = gap;
+		auto const moved{turned(correction, other.yaw)};
+		result = glm::dvec3{Free.x + moved.x, Free.y, Free.z + moved.y};
+		snap.snapped = true;
+		snap.mark = result;
+	}
+	return result;
+}
+
+void editor_mode::draw_snap_mark() const
+{
+	if (false == m_snap.active || false == m_snap.snapped)
+		return;
+	ImVec2 at;
+	if (screen_projection const projection; false == projection.project(m_snap.mark, at))
+		return;
+	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
+	drawlist->AddCircle(at, 9.0f, IM_COL32(80, 220, 255, 230), 24, 2.0f);
+	drawlist->AddCircleFilled(at, 3.0f, IM_COL32(80, 220, 255, 230));
 }
 
 void editor_mode::render_include_gizmo(glm::mat4 const &View, glm::mat4 const &Projection, glm::dvec3 const &Camerapos)

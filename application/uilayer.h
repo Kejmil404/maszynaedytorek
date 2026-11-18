@@ -79,7 +79,10 @@ public:
     static bool init( GLFWwindow *Window );
 	static void imgui_style();
 	// colours of the user interface: 0 the green ones shared with the starter, 1 the amber ones of the editor
-	static void imgui_colors(int const Palette);
+	// the number of the palettes imgui_colors() knows
+	static constexpr int palette_count{8};
+	// Brightness (0..1): how much lighter than the default the panels are
+	static void imgui_colors(int const Palette, float const Brightness);
 
     // assign texturing hardware unit
     static void set_unit( GLint const Textureunit ) { m_textureunit = GL_TEXTURE0 + Textureunit; }
@@ -154,7 +157,12 @@ protected:
 	{
 		return 0;
 	}
+	virtual float panel_brightness() const
+	{
+		return 0.0f;
+	}
 	static int m_palette; // colours set at the moment
+	static float m_brightness;
    ui_log_panel m_logpanel { "Log", true };
 	bool m_suppress_menu = false; // if `true`, the menu at the top of the window will not be present
 	bool m_menu_always = false; // if `true`, the menu is shown all the time, not only when the mouse is at the top of the window

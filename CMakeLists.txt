@@ -216,6 +216,7 @@ set(SOURCES
 "editor/editorHttp.cpp"
 "editor/editorNmt.cpp"
 "editor/editorDem.cpp"
+"editor/editorFileDialog.cpp"
 "editor/editorGeoMap.cpp"
 "editor/editorPreviews.cpp"
 "editor/editorIcons.cpp"
@@ -742,7 +743,8 @@ endif()
 # http client of the editor, for the orthophoto, the terrain model and the topo map of geoportal.gov.pl: WinHTTP on Windows,
 # libcurl elsewhere when available
 if (WIN32)
-	target_link_libraries(eu07_settings INTERFACE winhttp)
+	# ole32, shell32 and uuid: the file dialog of the editor
+	target_link_libraries(eu07_settings INTERFACE winhttp ole32 shell32 uuid)
 else()
 	find_package(CURL QUIET)
 	if (CURL_FOUND)

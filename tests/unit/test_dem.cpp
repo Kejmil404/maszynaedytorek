@@ -3,6 +3,7 @@
 #include "editor/editorDem.hpp"
 
 #include <cmath>
+#include <memory>
 #include <string>
 
 TEST_CASE("dem: an ASCII grid lies on PUWG 1992 by the outer corner of its south-western pixel") {
@@ -74,4 +75,36 @@ TEST_CASE("dem: the edge of the file blends in smoothly") {
 	CHECK(editor_dem::blend(10.0, 20.0) == doctest::Approx(0.5));
 	CHECK(editor_dem::blend(25.0, 20.0) == doctest::Approx(1.0));
 	CHECK(editor_dem::blend(0.0, 0.0) == doctest::Approx(1.0));
+}
+
+namespace {
+std::shared_ptr<editor_dem::grid const> flat_sheet(double const West, double const North, int const Size, float const Height) {
+	auto sheet{std::make_shared<editor_dem::grid>()};
+	sheet->east = West;
+	sheet->north = North;
+	sheet->pixel = 1.0;
+	sheet->width = Size;
+	sheet->height = Size;
+	sheet->heights.assign(static_cast<std::size_t>(Size) * Size, Height);
+	return sheet;
+}
+} // namespace
+
+TEST_CASE("dem: two sheets side by side have no edge between them, only around both") {
+	editor_dem::mosaic mosaic;
+	mosaic.build({flat_sheet(0.0, 100.0, 100, 10.f), flat_sheet(100.0, 100.0, 100, 20.f)});
+
+	CHECK(mosaic.low().x == doctest::Approx(0.0));
+	CHECK(mosaic.high().x == doctest::Approx(200.0));
+	// on the line where they meet, halfway up: 50 m from the outer edge, not at an edge
+	CHECK(mosaic.inside(100.0, 50.0) == doctest::Approx(50.0).epsilon(0.05));
+	CHECK(mosaic.inside(1.0, 50.0) < 2.0);
+	CHECK(mosaic.inside(-5.0, 50.0) == doctest::Approx(0.0));
+	double height{0.0};
+	// the later sheet where they overlap or meet
+	REQUIRE(mosaic.sample(150.0, 50.0, height));
+	CHECK(height == doctest::Approx(20.0));
+	REQUIRE(mosaic.sample(50.0, 50.0, height));
+	CHECK(height == doctest::Approx(10.0));
+	CHECK_FALSE(mosaic.seam().empty());
 }

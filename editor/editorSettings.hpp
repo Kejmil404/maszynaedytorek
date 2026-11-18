@@ -74,6 +74,9 @@ public:
 	// colours of the editor: 0 green, as the rest of the simulator; 1 amber
 	int palette() const { return m_palette; }
 	void palette(int Palette) { m_palette = Palette; }
+	// how much lighter the panels of the editor are, 0..1
+	float panel_brightness() const { return m_panel_brightness; }
+	void panel_brightness(float Brightness) { m_panel_brightness = Brightness; }
 
 	// the tutorial (Help > Tutorial) opens by itself when an editor session starts
 	bool first_steps() const { return m_first_steps; }
@@ -131,6 +134,7 @@ private:
 	bool m_nodebank_previews{true};
 	int m_nodebank_card{96};
 	int m_palette{0};
+	float m_panel_brightness{0.0f};
 	bool m_first_steps{true};
 	bool m_terrain_offer{true};
 	bool m_terrain_buried_ask{true};

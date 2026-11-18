@@ -32,6 +32,7 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorOrthophoto.hpp"
 #include "editor/editorNmt.hpp"
 #include "editor/editorDem.hpp"
+#include "editor/editorFileDialog.hpp"
 #include "editor/editorGeoMap.hpp"
 #include "editor/editorTrack.hpp"
 #include "editor/editorTrackTrace.hpp"
@@ -546,12 +547,11 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// heights of the chunks change: the scenery stays as any other one, for every build of the simulator
 	struct dem_import_state
 	{
-		struct loaded
-		{
-			std::shared_ptr<editor_dem::grid const> grid;
-			std::string error;
-		};
-		std::array<char, 1024> path{};
+		using sheet = editor_dem::listed_file;
+		using loaded = editor_dem::read_files;
+		std::array<char, 1024> path{}; // typed, or what the dialog chose: a file, a folder, or the first of the files
+		std::vector<std::filesystem::path> chosen; // the files chosen in the dialog, read instead of the path when there are any
+		std::future<editor_file_dialog::result> dialog;
 		int axes{0}; // editor_dem::axes
 		double feather{30.0}; // m, the band along the edges of the file over which its heights blend into the terrain
 		double offset{0.0}; // m, added to the heights of the file
@@ -559,8 +559,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool finer{true}; // the chunks given the point spacing of the file where theirs is coarser
 		bool create{true}; // chunks made where the file reaches beyond the terrain
 		std::future<loaded> loading;
-		std::shared_ptr<editor_dem::grid const> grid; // the file read, to be put into the terrain
-		std::string file; // of the grid read
+		std::shared_ptr<editor_dem::mosaic const> mosaic; // the files read, as one, to be put into the terrain
+		std::vector<sheet> sheets;
+		std::string file; // of the files read, for the log
 		std::optional<double> seam; // m, how much higher the terrain is than the file along its edges, on the median
 		std::size_t seam_points{0};
 		std::string status;
@@ -575,8 +576,11 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the chunk given the point spacing of the file, if its own is coarser and the import is to do it; true if it changed
 	bool dem_import_spacing(heightmap::chunk_key const &Key, float const Spacing);
 	void render_dem_import_grid();
+	void render_dem_import_sheets() const;
 	// the rectangle (x, z) of the scenery the grid of the file covers
-	std::pair<glm::dvec2, glm::dvec2> dem_import_area(editor_dem::grid const &Grid) const;
+	std::pair<glm::dvec2, glm::dvec2> dem_import_area(editor_dem::mosaic const &Mosaic) const;
+	// the file dialog of the system for the files of the model, or a folder of them
+	void dem_import_browse(bool const Folder);
 	std::vector<nmt_place> nmt_track_places(double const Step) const override;
 	void nmt_locate() override;
 	void nmt_fit();
@@ -1146,6 +1150,37 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// places too, from Pivot
 	void selection_scale(glm::vec3 const &Factor, glm::dvec3 const &Pivot);
 		float m_gizmo_snap{1.0f};                                    // translation snap step (metres) applied while Ctrl is held
+		// the models moved with the gizmo are drawn to the other models: their points, their middles, or their sides set against each
+		// other, edge to edge; within m_snap_pixels of the cursor or of the place of the model. Alt held: not
+		bool m_snap_objects{false};
+		int m_snap_kind{2}; // 0: points, 1: middles, 2: edge to edge
+		float m_snap_pixels{15.0f};
+		struct snap_neighbour
+		{
+			TAnimModel const *model{nullptr};
+			glm::dvec3 location{0.0};
+			double yaw{0.0}; // radians
+			glm::dvec2 low{0.0}; // of the box of its points, along its own axes (x, z), from its place
+			glm::dvec2 high{0.0};
+			double bottom{0.0}; // and up
+			double top{0.0};
+		};
+		struct snap_drag
+		{
+			bool active{false};
+			TAnimModel const *held{nullptr};
+			snap_neighbour box; // of the model held
+			std::vector<snap_neighbour> neighbours;
+			std::vector<glm::dvec3> points; // of the models around, for the points
+			glm::dvec3 source{0.0}; // the point of the model held which goes onto a point, from its place
+			bool snapped{false}; // in this frame
+			glm::dvec3 mark{0.0}; // where it was drawn to
+		};
+		snap_drag m_snap;
+		void snap_begin(TAnimModel const &Model);
+		static snap_neighbour snap_box(TAnimModel const &Model);
+		glm::dvec3 snap_position(TAnimModel const &Model, glm::dvec3 const &Free);
+		void draw_snap_mark() const;
 
 	TTrack *selected_track() const override;
 	bool track_editing() const override;

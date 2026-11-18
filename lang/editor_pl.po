@@ -14492,3 +14492,107 @@ msgstr "Dodano odcinków z ramki: %d, zaznaczonych: %d"
 
 msgid "Pieces selected: %d"
 msgstr "Zaznaczonych odcinków: %d"
+
+# scenery editor: colours, files of the terrain model, snapping to objects
+
+msgid "Blue"
+msgstr "Niebieski"
+
+msgid "Red"
+msgstr "Czerwony"
+
+msgid "Purple"
+msgstr "Fioletowy"
+
+msgid "Teal"
+msgstr "Turkusowy"
+
+msgid "Pink"
+msgstr "Różowy"
+
+msgid "Grey"
+msgstr "Szary"
+
+msgid "Brightness of the panels"
+msgstr "Jasność paneli"
+
+msgid "Sheets of the terrain model downloaded from geoportal.gov.pl (.asc, .xyz, .tif in PUWG 1992), one or a folder of them, laid into the terrain there is; their outer edge blends into it"
+msgstr "Arkusze modelu terenu pobrane z geoportal.gov.pl (.asc, .xyz, .tif w PUWG 1992), jeden albo cały folder, wstawione w istniejący teren; ich zewnętrzna krawędź płynnie się z nim łączy"
+
+msgid "Choose files..."
+msgstr "Wybierz pliki..."
+
+msgid "The file dialog of the system: one file or many, read as one terrain"
+msgstr "Systemowe okno wyboru: jeden plik albo wiele, wczytane jako jeden teren"
+
+msgid "Choose a folder..."
+msgstr "Wybierz folder..."
+
+msgid "All the files of the terrain model in the folder (.asc, .xyz, .txt, .csv, .tif), without its subfolders, read as one terrain"
+msgstr "Wszystkie pliki modelu terenu w folderze (.asc, .xyz, .txt, .csv, .tif), bez podfolderów, wczytane jako jeden teren"
+
+msgid "Path of a file or a folder"
+msgstr "Ścieżka do pliku albo folderu"
+
+msgid "The whole path of a file or of a folder of them, as copied from the file manager"
+msgstr "Pełna ścieżka do pliku albo folderu z plikami, np. skopiowana z menedżera plików"
+
+msgid "%zu files chosen"
+msgstr "Wybrano plików: %zu"
+
+msgid "The file dialog is open..."
+msgstr "Okno wyboru plików jest otwarte..."
+
+msgid "Reading %zu files..."
+msgstr "Wczytywanie plików: %zu..."
+
+msgid "Files: %zu read of %zu###demsheets"
+msgstr "Pliki: wczytano %zu z %zu###demsheets"
+
+msgid "%zu files as one terrain, %.0f x %.0f m, points from %.2f m"
+msgstr "%zu plików jako jeden teren, %.0f x %.0f m, punkty od %.2f m"
+
+msgid "%s, %d x %d points of %.2f m"
+msgstr "%s, %d x %d punktów co %.2f m"
+
+msgid "the coordinates the other way round"
+msgstr "współrzędne w zamienionej kolejności"
+
+msgid "The files hold too many heights to be put in at once: put them in by parts, a few sheets at a time"
+msgstr "Pliki mają za dużo wysokości, żeby wstawić je naraz: wstaw je w częściach, po kilka arkuszy"
+
+msgid "There are no files of the terrain model there (.asc, .xyz, .txt, .csv, .tif)"
+msgstr "Nie ma tu plików modelu terenu (.asc, .xyz, .txt, .csv, .tif)"
+
+msgid "None of the files could be read"
+msgstr "Nie udało się wczytać żadnego z plików"
+
+msgid "A folder of the files of the terrain model"
+msgstr "Folder z plikami modelu terenu"
+
+msgid "The files of the terrain model"
+msgstr "Pliki modelu terenu"
+
+msgid "The system has no file dialog the editor can open: type the path of the file or of the folder"
+msgstr "System nie ma okna wyboru plików, które edytor może otworzyć: wpisz ścieżkę do pliku albo folderu"
+
+msgid "Snap to objects"
+msgstr "Przyciągaj do obiektów"
+
+msgid "While moved with the gizmo the model is drawn to the other models; Alt held: not"
+msgstr "Przy przesuwaniu gizmem model jest przyciągany do innych modeli; z wciśniętym Alt nie"
+
+msgid "Middles"
+msgstr "Środki"
+
+msgid "Edge to edge"
+msgstr "Krawędź do krawędzi"
+
+msgid "Points: the point of the model nearest to the cursor where you took it goes onto a point of another model under the cursor.\nMiddles: onto the place of another model.\nEdge to edge: its side against the side of a model turned square to it, flush with its end where they're near"
+msgstr "Punkty: punkt modelu najbliżej kursora w chwili chwycenia trafia na punkt innego modelu pod kursorem.\nŚrodki: na miejsce innego modelu.\nKrawędź do krawędzi: jego bok do boku modelu obróconego pod kątem prostym, z wyrównaniem końców, gdy są blisko"
+
+msgid "Sensitivity"
+msgstr "Czułość"
+
+msgid "How near, on the screen, the model is drawn from"
+msgstr "Z jakiej odległości na ekranie model jest przyciągany"

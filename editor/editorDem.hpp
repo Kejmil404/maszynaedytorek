@@ -10,6 +10,7 @@ http://mozilla.org/MPL/2.0/.
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -56,6 +57,55 @@ struct grid
 	// the values with data, and the lowest and highest of them
 	std::size_t known() const;
 	glm::dvec2 range() const;
+};
+
+// sheets of the model put in together, as a folder of them: one terrain of all of them. where they overlap, the later one is
+// taken. its edge is the outer edge of all of them, where the terrain there is meets it; between the sheets there's no edge
+class mosaic
+{
+  public:
+	void build(std::vector<std::shared_ptr<grid const>> Grids);
+	bool empty() const { return m_grids.empty(); }
+	std::vector<std::shared_ptr<grid const>> const &grids() const { return m_grids; }
+	// the height at the point of PUWG 1992 of the last sheet which has it
+	bool sample(double East, double North, double &Height) const;
+	// how far the point lies inside the outer edge of the sheets, m, the holes of the data counted as outside; 0 outside of them
+	double inside(double East, double North) const;
+	// the points just inside the outer edge, in PUWG 1992 (easting, northing)
+	std::vector<glm::dvec2> seam() const;
+	// the rectangle of all the sheets: west and south, east and north
+	glm::dvec2 const &low() const { return m_low; }
+	glm::dvec2 const &high() const { return m_high; }
+	// the finest point spacing of the sheets
+	double pixel() const;
+	glm::dvec2 range() const;
+	std::size_t points() const;
+
+  private:
+	float distance_at(int Column, int Row) const;
+
+	std::vector<std::shared_ptr<grid const>> m_grids;
+	glm::dvec2 m_low{0.0};
+	glm::dvec2 m_high{0.0};
+	double m_cell{1.0}; // m, of the map of the distances to the edge
+	int m_columns{0};
+	int m_rows{0};
+	std::vector<float> m_distance; // m, from the middle of a cell to the nearest one without data; rows from the north
+};
+
+// a file of those read for a mosaic, as the editor lists it
+struct listed_file
+{
+	std::string name;
+	std::string note; // what it was read as, or why it wasn't
+	bool read{false};
+};
+// the files read for a mosaic: the mosaic of those which could be read, and what became of each
+struct read_files
+{
+	std::shared_ptr<editor_dem::mosaic const> mosaic; // qualified: the member takes the name of the type
+	std::vector<listed_file> sheets;
+	std::string error;
 };
 
 // the grid of the file, its coordinates read as Axes says; Origin (easting, northing) is the place of the scenery the automatic
