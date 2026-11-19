@@ -1108,6 +1108,13 @@ void editor_mode::undo_one()
         return;
     }
 
+    if (snap.action == EditorSnapshot::Action::Lights)
+    {
+        restore_lights(snap);
+        g_redo.push_back(std::move(snap));
+        return;
+    }
+
     if (snap.action == EditorSnapshot::Action::Kilometrage)
     {
         restore_kilometrage(snap);
@@ -1287,6 +1294,13 @@ void editor_mode::redo_one()
     if (snap.action == EditorSnapshot::Action::Sounds)
     {
         restore_sounds(snap);
+        m_history.push_back(std::move(snap));
+        return;
+    }
+
+    if (snap.action == EditorSnapshot::Action::Lights)
+    {
+        restore_lights(snap);
         m_history.push_back(std::move(snap));
         return;
     }
@@ -3304,6 +3318,8 @@ std::string editor_mode::convert_ground()
 
 bool editor_mode::save()
 {
+    // the lights tried out of a switch aren't the ones of the models: they're put back before the models are written
+    lights_untry();
     if (scene::Layers.empty())
     {
         // without the sources tracked during the load there's no telling where the changes belong
@@ -3357,6 +3373,7 @@ bool editor_mode::save()
     auto const terrainadded{false == rootstatements.empty() || false == statements.empty()};
     auto const controls{turntable_controls(rootstatements)};
     auto const ambient{ambient_sounds(rootstatements)};
+    auto const lights{light_switches(rootstatements)};
     auto const noses{nose_controls(rootstatements)};
     std::vector<std::string> trailing;
     auto const placed{m_vehicle.trainset_lines(trailing)};
@@ -3365,6 +3382,8 @@ bool editor_mode::save()
     auto const result = scene::Layers.save(rootstatements, trailing, statements);
     if (result.success && controls)
         m_turntable_included = true;
+    if (result.success && lights)
+        m_events.lights_included = true;
     if (result.success && ambient)
         m_events.included = true;
     if (result.success && noses)
@@ -7688,12 +7707,22 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         case GLFW_KEY_F4: choose_work_area(work_area::roads); break;
         case GLFW_KEY_F5: choose_work_area(work_area::terrain); break;
         case GLFW_KEY_F6: choose_work_area(work_area::events); break;
-        // the edit modes in the order of the toolbar; in the track mode the digits typed as a value were taken already
-        case GLFW_KEY_1: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::MODIFY); break;
-        case GLFW_KEY_2: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::ADD); break;
-        case GLFW_KEY_3: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::BRUSH); break;
-        case GLFW_KEY_4: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::FILL); break;
-        case GLFW_KEY_5: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::COPY); break;
+        // the edit modes in the order of the toolbar; in the track mode the digits typed as a value were taken already; in the
+        // events the two tools of the sounds
+        case GLFW_KEY_1:
+        case GLFW_KEY_2:
+            if (m_events_open)
+            {
+                events_choose_tool(Key == GLFW_KEY_2);
+                break;
+            }
+            handled = ui()->mode() != nodebank_panel::TRACK;
+            if (handled)
+                choose_edit_mode(Key == GLFW_KEY_1 ? nodebank_panel::MODIFY : nodebank_panel::ADD);
+            break;
+        case GLFW_KEY_3: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open; if (handled) choose_edit_mode(nodebank_panel::BRUSH); break;
+        case GLFW_KEY_4: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open; if (handled) choose_edit_mode(nodebank_panel::FILL); break;
+        case GLFW_KEY_5: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open; if (handled) choose_edit_mode(nodebank_panel::COPY); break;
         default: handled = false; break;
         }
         if (handled)
@@ -7852,12 +7881,13 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
             break;
         }
         // the events: the sound being put given up, then the selected one deselected
-        if (is_press(Action) && m_events_open && (m_events.placing || m_events.selected >= 0))
+        if (is_press(Action) && m_events_open && (m_events.placing || m_events.selected >= 0 || m_events.switch_selected >= 0 || m_events.model != nullptr))
         {
+            // Insert gives way to Select, as in the surroundings
             if (m_events.placing)
-                m_events.placing = false;
+                events_choose_tool(false);
             else
-                m_events.selected = -1;
+                events_deselect();
             break;
         }
         if (is_press(Action))
@@ -8400,7 +8430,8 @@ void editor_mode::render_change_history(){
                         s.action == EditorSnapshot::Action::Array ? "ARR" :
                         s.action == EditorSnapshot::Action::Terrain ? "TER" :
                         s.action == EditorSnapshot::Action::Kilometrage ? "KM" :
-                        s.action == EditorSnapshot::Action::Sounds ? "SND" : "OTH",
+                        s.action == EditorSnapshot::Action::Sounds ? "SND" :
+                        s.action == EditorSnapshot::Action::Lights ? "LGT" : "OTH",
                         s.node_name.empty() ? STR_C("(no name)") : s.node_name.c_str(),
                         s.position.x, s.position.y, s.position.z);
 

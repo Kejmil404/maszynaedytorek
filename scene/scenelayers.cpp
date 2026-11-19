@@ -135,6 +135,7 @@ void node_layers::clear()
 	m_sources.clear();
 	m_erased.clear();
 	m_renamed.clear();
+	m_lit.clear();
 	m_shapes.clear();
 	m_shapeserased = false;
 	m_templates.clear();
@@ -482,6 +483,17 @@ void node_layers::forget(basic_node const *Node)
 	m_erased.emplace_back(lookup->second.layer, lookup->second.span);
 	m_sources.erase(lookup);
 	m_renamed.erase(Node);
+	m_lit.erase(Node);
+}
+
+// indicates the lights of specified model were changed in the editor
+void node_layers::lit(basic_node const *Node)
+{
+	// NOTE: a node which isn't defined by a scenery file yet is written whole on save, along with its lights
+	if (m_sources.find(Node) != m_sources.end())
+	{
+		m_lit.emplace(Node);
+	}
 }
 
 // indicates specified node was given another name in the editor

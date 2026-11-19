@@ -31,9 +31,6 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 - Zaznaczanie wielu dróg (Shift+klik, Shift+ramka), wspólna zmiana parametrów i usuwanie.
 - Poprawki dopasowania dróg do terenu (losowe skoki w górę).
 
-**Tory**
-- Napęd rozjazdu w Inspektorze: zmiana modelu, strony i usuwanie napędu po zaznaczeniu rozjazdu.
-
 **Kamera i widok**
 - Kamera startowa scenerii ustawiana z edytora; po F11 kamera zostaje w miejscu edytora.
 - Widok z góry działa też w starym rendererze OpenGL.
@@ -45,6 +42,9 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 **Eksperymentalne** (włączane w ustawieniach edytora)
 - Tryb Eventy (F6): dźwięki otoczenia zapisywane do osobnego pliku include.
 - Dźwięki obsługiwane jak obiekty: zaznaczanie, gizmo, Delete, Ctrl+Z; pełna edycja węzła, eventów i launchera (kilka plików, dźwięk przed i po pętli, opóźnienia, klawisz, warunek na komórce pamięci, godziny).
+- Narzędzia Zaznaczanie (1) i Wstawianie (2) w trybie Eventy, jak w Otoczeniu; odsłuch i zasięgi dźwięków na pasku.
+- Światła modeli w Inspektorze: tryb każdego światła (zgaszone, zapalone, miga, pulsuje, po zmroku), kolor i płynna zmiana, z podglądem.
+- Przełączniki świateł: event `lights` z launcherem (o godzinie, zapal/zgaś o dwóch godzinach, na klawisz, przy zbliżeniu), kilka modeli naraz, warunek na komórce pamięci, „Wypróbuj”.
 
 
 ## Table of Contents

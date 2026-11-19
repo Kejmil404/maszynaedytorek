@@ -226,6 +226,20 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		Buttons.push_back({icon::lanes, STR_C("Show lanes"), nullptr, STR_C("The lanes of the roads drawn as the paths the vehicles take"), tool.lanes, [&tool]() { tool.lanes = !tool.lanes; }, true});
 		break;
 	}
+	case work_area::events:
+	{
+		// as in the surroundings: Select picks the sounds and moves them with the gizmo, Insert puts new ones
+		auto &state{m_events};
+		Buttons.push_back({icon::select, STR_C("Select"), "1", STR_C("LMB picks a sound, the gizmo moves it; Del deletes it, Esc deselects it"), false == state.placing, [this]() { events_choose_tool(false); }});
+		Buttons.push_back({icon::insert, STR_C("Insert"), "2", STR_C("LMB on the ground puts a sound of the file chosen in the tool options"), state.placing, [this]() { events_choose_tool(true); }});
+		auto const chosen{state.selected >= 0 && state.selected < static_cast<int>(state.sounds.size())};
+		auto const listening{chosen && state.previewing == state.selected};
+		Buttons.push_back({icon::sound, listening ? STR_C("Stop") : STR_C("Listen"), nullptr, STR_C("The selected sound played where it is, in a loop, until stopped"), listening,
+		                   [this, listening]() { events_listen(listening ? -1 : m_events.selected); }, true});
+		Buttons.back().enabled = chosen;
+		Buttons.push_back({icon::count, STR_C("Ranges"), nullptr, STR_C("How far each sound is heard, drawn around all of them; else around the selected one only"), state.ranges, [&state]() { state.ranges = false == state.ranges; }});
+		break;
+	}
 	case work_area::terrain:
 	{
 		// what the left button does on the terrain

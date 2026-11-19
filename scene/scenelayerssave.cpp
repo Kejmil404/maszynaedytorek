@@ -27,6 +27,9 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/translation.h"
 #include "editor/editorFormat.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <format>
 #include <map>
 #include <optional>
 #include <set>
@@ -139,7 +142,45 @@ struct model_placement
 	glm::vec3 rotation{0.f}; // rotation the loader adds to the angle specified in the definition
 	std::optional<glm::vec3> scale; // scale factor to put in the definition
 	std::optional<std::string> name; // name of the node
+	std::optional<std::string> lights; // the lights, lightcolors and notransition of the model, in place of the ones of the definition
 };
+
+// the lights of a model the way its export writes them: what goes in place of the ones of its definition
+std::string lights_of(TAnimModel const &Model)
+{
+	std::string text;
+	auto const count{std::clamp(Model.iNumLights, 0, iMaxNumLights)};
+	if (count == 0)
+	{
+		return text;
+	}
+	text += "lights ";
+	for (int index = 0; index < count; ++index)
+	{
+		text += number(Model.lsLights[index]) + ' ';
+	}
+	auto const coloured{std::any_of(std::begin(Model.m_lightcolors), std::begin(Model.m_lightcolors) + count, [](glm::vec3 const &Color) { return Color.r >= 0.f; })};
+	if (coloured)
+	{
+		text += "lightcolors ";
+		for (int index = 0; index < count; ++index)
+		{
+			auto const &color{Model.m_lightcolors[index]};
+			if (color.r < 0.f)
+			{
+				text += "-1 ";
+				continue;
+			}
+			auto const component = [](float const Value) { return std::clamp(static_cast<int>(std::lround(Value * 255.f)), 0, 255); };
+			text += std::format("{:06x} ", component(color.r) << 16 | component(color.g) << 8 | component(color.b));
+		}
+	}
+	if (false == Model.m_transition)
+	{
+		text += "notransition ";
+	}
+	return text;
+}
 
 bool about_equal(float const Left, float const Right)
 {
@@ -171,6 +212,30 @@ bool patch_model(std::string &Text, model_placement const &Placement, std::strin
 	};
 	std::string additions; // blocks to insert ahead of the closing keyword
 
+	if (Placement.lights)
+	{
+		// the lights of the definition taken out, the ones of the model put ahead of the closing keyword
+		auto const keyword = [&](std::size_t const Index) {
+			auto const &text{tokens[Index].text};
+			return text == "endmodel" || text == "lights" || text == "lightcolors" || text == "angles" || text == "scale" || text == "notransition";
+		};
+		for (std::size_t idx = 11; idx < last; ++idx)
+		{
+			auto const &text{tokens[idx].text};
+			if (text != "lights" && text != "lightcolors" && text != "notransition")
+			{
+				continue;
+			}
+			auto end{idx + 1};
+			while (text != "notransition" && end < last && false == keyword(end))
+			{
+				++end;
+			}
+			changes.push_back({tokens[idx].begin, tokens[end].begin, ""});
+			idx = end - 1;
+		}
+		additions += *Placement.lights;
+	}
 	if (Placement.name)
 	{
 		replace(3, *Placement.name);
@@ -714,9 +779,10 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 			auto const rotated{false == glm::all(glm::epsilonEqual(angles, source.angles, 1e-3f))};
 			auto const scaled{false == glm::all(glm::epsilonEqual(scale, source.scale, 1e-4f))};
 			auto const renamed{Model != nullptr && m_renamed.find(Node) != m_renamed.end()};
+			auto const lit{Model != nullptr && m_lit.find(Node) != m_lit.end()};
 			auto const *cell{Model == nullptr ? static_cast<TMemCell const *>(Node) : nullptr};
 			auto const track{cell != nullptr && cell->Track != nullptr ? cell->Track->name() : std::string{}};
-			if (false == (moved || rotated || scaled || renamed || (false == track.empty() && Node->dirty()))) // NOSONAR
+			if (false == (moved || rotated || scaled || renamed || lit || (false == track.empty() && Node->dirty()))) // NOSONAR
 			{
 				return true;
 			}
@@ -751,6 +817,10 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 				if (renamed)
 				{
 					placement.name = (Node->name().empty() ? "none" : Node->name());
+				}
+				if (lit)
+				{
+					placement.lights = lights_of(*Model);
 				}
 				patched = patch_model(text, placement, error);
 			}
@@ -1828,6 +1898,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 	}
 	m_erased.clear();
 	m_renamed.clear();
+	m_lit.clear();
 	// the shapes of the rewritten files are somewhere else in them now
 	m_shapes.erase(std::remove_if(std::begin(m_shapes), std::end(m_shapes), [&](shape_source const &Shape) { return std::find(std::begin(composed), std::end(composed), Shape.layer) != std::end(composed); }), std::end(m_shapes));
 	for (auto *path : savedpaths)

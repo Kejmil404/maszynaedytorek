@@ -1163,9 +1163,49 @@ void editor_mode::render_turnout_ui()
 		if (angle > 1e-6)
 			ImGui::Text(STR_C("Angle 1:%.2f (%.4f deg), R in the entry %.0f m"), 1.0 / std::tan(angle), glm::degrees(angle), diverging.radius);
 	}
-	render_switch_drive(*track, set.has_value());
+	auto const drive_ui = [&](TTrack &Switch) {
+		ImGui::PushID(&Switch);
+		if (set.has_value())
+			ImGui::TextUnformatted(Switch.name().c_str());
+		if (false == EditorIncludes.scanned())
+			ImGui::TextDisabled("%s", STR_C("Looking for the templates..."));
+		else if (auto const drive{find_switch_drive(Switch, false)})
+		{
+			auto const family{drive->family};
+			auto const variant{drive->index};
+			if (begin_fields("##standingdrive", 0.3f))
+			{
+				field_row("Drive##standing");
+				if (ImGui::BeginCombo("##standing", m_switch.drives[family].name.c_str()))
+				{
+					for (int i = 0; i < static_cast<int>(m_switch.drives.size()); ++i)
+						if (ImGui::Selectable(m_switch.drives[i].name.c_str(), family == i) && i != family)
+							replace_switch_drive(Switch, i, false);
+					ImGui::EndCombo();
+				}
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("%s\n%s", STR_C("Puts another drive in place of the drive of this switch, on the same side"), format(STR_C("Drive: events %s+ and %s- switch it, also in the map"), Switch.name().c_str(), Switch.name().c_str()).c_str());
+				ImGui::EndTable();
+			}
+			int side{((variant >> 1) == (variant & 1)) ? 0 : 1};
+			if (segmented("standingside", side, {{0, STR_C("diverging side"), "Puts the drive of the switch on the other side of the track: the same drive, its variant for the other side"},
+			                                     {1, STR_C("other side"), "Puts the drive of the switch on the other side of the track: the same drive, its variant for the other side"}}))
+				flip_switch_drive(Switch);
+		}
+		else if ((simulation::Events.FindEvent(Switch.name() + "+") != nullptr && simulation::Events.FindEvent(Switch.name() + "-") != nullptr) || (m_track_name.track == &Switch && m_track_name.uses.includes > 0))
+			ImGui::TextDisabled(STR_C("Drive: events %s+ and %s- switch it, also in the map"), Switch.name().c_str(), Switch.name().c_str());
+		else
+		{
+			ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "%s", STR_C("No drive: the switch can't be switched during the game"));
+			render_switch_drive_choice();
+			if (m_switch.drive >= 0 && ImGui::Button(STR_C("Put the drive by the switch")))
+				place_switch_drive(Switch);
+		}
+		ImGui::PopID();
+	};
+	drive_ui(*track);
 	if (set.has_value())
-		render_switch_drive(*set->second, true);
+		drive_ui(*set->second);
 	{
 		bool frogs{track->SwitchExtension->m_frogs};
 		bool movable{track->SwitchExtension->m_movablenose};
@@ -1445,13 +1485,6 @@ void editor_mode::render_path_ui()
 			throw_switch(*track);
 		item_tooltip(track->SwitchExtension->CurrentIndex ? "Set to the diverging track: throws it over to the main one. In the editor only, to see the blades and the route; the simulation starts with the switches set to the main track"
 		                                                   : "Set to the main track: throws it over to the diverging one. In the editor only, to see the blades and the route; the simulation starts with the switches set to the main track");
-	}
-	// the drive by the switch, changed here as in the turnout tool
-	if (track->eType == tt_Switch && track->SwitchExtension != nullptr && false == track->m_editorremoved && ImGui::CollapsingHeader(STR_C("Switch drive##inspector"), ImGuiTreeNodeFlags_DefaultOpen))
-	{
-		render_switch_drive(*track, false);
-		if (false == m_switch.status.empty())
-			ImGui::TextWrapped("%s", m_switch.status.c_str());
 	}
 	// the template of a switch, a slip or a crossing, another one picked in place
 	if (geometry)

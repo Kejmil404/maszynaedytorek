@@ -14896,11 +14896,191 @@ msgstr "Zapisuje tak jak Ctrl+S, co tyle minut, dopóki są niezapisane zmiany; 
 msgid "Every (min)##autosave"
 msgstr "Co (min)##autosave"
 
-msgid "Remove the drive"
-msgstr "Usuń napęd"
 
-msgid "Takes the drive model away from the switch; Ctrl+Z puts it back"
-msgstr "Usuwa model napędu przy rozjeździe; Ctrl+Z przywraca go"
 
-msgid "Switch drive##inspector"
-msgstr "Napęd rozjazdu##inspector"
+
+msgid "LMB picks a sound, the gizmo moves it; Del deletes it, Esc deselects it"
+msgstr "LPM wybiera dźwięk, gizmo go przesuwa; Del usuwa, Esc odznacza"
+
+msgid "LMB on the ground puts a sound of the file chosen in the tool options"
+msgstr "LPM na ziemi stawia dźwięk z pliku wybranego w opcjach narzędzia"
+
+msgid "The selected sound played where it is, in a loop, until stopped"
+msgstr "Odtwarza zaznaczony dźwięk w jego miejscu, w pętli, aż do zatrzymania"
+
+msgid "Ranges"
+msgstr "Zasięgi"
+
+msgid "How far each sound is heard, drawn around all of them; else around the selected one only"
+msgstr "Zasięg słyszalności rysowany wokół wszystkich dźwięków; wyłączone: tylko wokół zaznaczonego"
+
+msgid "Choose the file of the sound first, in the tool options"
+msgstr "Najpierw wybierz plik dźwięku w opcjach narzędzia"
+
+msgid "Insert a sound"
+msgstr "Wstaw dźwięk"
+
+msgid "LMB on the ground: put a sound   Esc: back to Select"
+msgstr "LPM na ziemi: postaw dźwięk   Esc: powrót do Zaznaczania"
+
+msgid "No sounds yet: the Insert tool (2) puts them"
+msgstr "Nie ma jeszcze dźwięków: stawia je narzędzie Wstawianie (2)"
+
+msgid "every %.2f s"
+msgstr "co %.2f s"
+
+msgid "lit %.2f of a second"
+msgstr "świeci %.2f sekundy"
+
+msgid "comes on at %.2f (0: as usual)"
+msgstr "zapala się przy %.2f (0: jak zwykle)"
+
+msgid "No change"
+msgstr "Bez zmiany"
+
+msgid "Unlit"
+msgstr "Zgaszone"
+
+msgid "Lit"
+msgstr "Zapalone"
+
+msgid "Blinking"
+msgstr "Miga"
+
+msgid "Pulsing"
+msgstr "Pulsuje"
+
+msgid "In the dark"
+msgstr "Po zmroku"
+
+msgid "In the dark, off late at night"
+msgstr "Po zmroku, gaśnie późno w nocy"
+
+msgid "Opposite##phase"
+msgstr "Naprzemiennie##phase"
+
+msgid "Blinks when the light set the same way doesn't: the two lights of a level crossing"
+msgstr "Miga wtedy, gdy światło ustawione tak samo nie świeci: jak dwa światła na przejeździe"
+
+msgid "The lights of this model are the ones of its template: the editor leaves them as they are"
+msgstr "Światła tego modelu należą do jego szablonu: edytor ich nie zmienia"
+
+msgid "A switch goes with a model with lights: click one, they're marked in the view"
+msgstr "Przełącznik stawia się przy modelu ze światłami: kliknij taki, są oznaczone w widoku"
+
+msgid "The model is named %s now, for the event to find it"
+msgstr "Model ma teraz nazwę %s, żeby event mógł go znaleźć"
+
+msgid "%s put; it goes into the scenery with the next save"
+msgstr "Postawiono %s; trafi do scenerii przy następnym zapisie"
+
+msgid "A model with lights"
+msgstr "Model ze światłami"
+
+msgid "The lights the model has from the start of the scenario, written into its definition on save. A switch of the lights changes them later"
+msgstr "Światła, które model ma od początku scenariusza, zapisywane w jego definicji. Przełącznik świateł zmienia je później"
+
+msgid "Light %d"
+msgstr "Światło %d"
+
+msgid "Own colour##light"
+msgstr "Własny kolor##light"
+
+msgid "Smooth change of the lights"
+msgstr "Płynna zmiana świateł"
+
+msgid "Name##switch"
+msgstr "Nazwa##switch"
+
+msgid "Its events and launchers are named after it. Letters, digits, _ and -"
+msgstr "Od niej biorą nazwy jego eventy i launchery. Litery, cyfry, _ i -"
+
+msgid "Place##switch"
+msgstr "Miejsce##switch"
+
+msgid "Where its launcher stands: the camera near it sets off a switch on a key, or as it comes near"
+msgstr "Gdzie stoi jego launcher: kamera w pobliżu uruchamia przełącznik na klawisz albo przy zbliżeniu"
+
+msgid "Models##switch"
+msgstr "Modele##switch"
+
+msgid "%s (not in the scenery)"
+msgstr "%s (nie ma go w scenerii)"
+
+msgid "Shift+LMB on a model with lights adds it, or takes it out"
+msgstr "Shift+LPM na modelu ze światłami dodaje go albo usuwa"
+
+msgid "At the first hour##switchon"
+msgstr "O pierwszej godzinie##switchon"
+
+msgid "The lights it gives##switchon"
+msgstr "Światła, które ustawia##switchon"
+
+msgid "At the second hour##switchoff"
+msgstr "O drugiej godzinie##switchoff"
+
+msgid "Put the lights back##switch"
+msgstr "Przywróć światła##switch"
+
+msgid "Try it out##switch"
+msgstr "Wypróbuj##switch"
+
+msgid "Gives the models the lights of the switch in the view, until clicked again; nothing of it is saved"
+msgstr "Ustawia modelom w widoku światła z przełącznika, aż do ponownego kliknięcia; nic z tego się nie zapisuje"
+
+msgid "Fly to##switch"
+msgstr "Leć do##switch"
+
+msgid "Delete##switch"
+msgstr "Usuń##switch"
+
+msgid "When##switch"
+msgstr "Kiedy##switch"
+
+msgid "At an hour"
+msgstr "O godzinie"
+
+msgid "On at an hour, off at another"
+msgstr "Zapal o jednej godzinie, zgaś o drugiej"
+
+msgid "On a key, while the camera is near"
+msgstr "Na klawisz, gdy kamera jest blisko"
+
+msgid "Once, as the camera comes near"
+msgstr "Raz, gdy kamera się zbliży"
+
+msgid "A letter or a digit; a capital letter is the key with Shift"
+msgstr "Litera lub cyfra; wielka litera to klawisz z Shiftem"
+
+msgid "A delay picked at random each time: the lamps of a street put on one switch each come on at their own moment"
+msgstr "Opóźnienie losowane za każdym razem: latarnie ulicy na jednym przełączniku zapalą się każda w swoim momencie"
+
+msgid "A scenario which starts after the hour gets the lights the models have from the start: give them in the lights of each model"
+msgstr "Scenariusz, który zaczyna się po tej godzinie, dostaje światła, jakie modele mają od początku: ustaw je w światłach każdego modelu"
+
+msgid "The switch deleted; it goes out of the scenery with the next save"
+msgstr "Usunięto przełącznik; zniknie ze scenerii przy następnym zapisie"
+
+msgid "Switches of the lights"
+msgstr "Przełączniki świateł"
+
+msgid "A sound"
+msgstr "Dźwięk"
+
+msgid "A switch of the lights"
+msgstr "Przełącznik świateł"
+
+msgid "Insert a switch of the lights"
+msgstr "Wstaw przełącznik świateł"
+
+msgid "LMB on a model with lights puts a switch of its lights by it: an event lights with its launcher, written on each save to an include of the editor. Shift+LMB with the Select tool adds more models to the switch selected"
+msgstr "LPM na modelu ze światłami stawia przy nim przełącznik jego świateł: event lights z launcherem, zapisywany przy każdym zapisie do pliku include edytora. Shift+LPM narzędziem Zaznaczanie dodaje kolejne modele do zaznaczonego przełącznika"
+
+msgid "LMB on a model with lights: its lights   Shift+LMB: add it to the switch selected, or take it out"
+msgstr "LPM na modelu ze światłami: jego światła   Shift+LPM: dodaj go do zaznaczonego przełącznika albo usuń"
+
+msgid "%s  (models: %zu)##lights%zu"
+msgstr "%s  (modele: %zu)##lights%zu"
+
+msgid "Click a sound, a switch of the lights or a model with lights in the view, or in the list, to change it"
+msgstr "Kliknij dźwięk, przełącznik świateł albo model ze światłami w widoku lub na liście, żeby go zmienić"

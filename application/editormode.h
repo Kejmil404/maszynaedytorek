@@ -107,6 +107,40 @@ struct editor_mode_ambient
 	bool operator==(editor_mode_ambient const &) const = default;
 };
 
+// a switch of the lights of models (Events, experimental): an event lights with its event launchers, written by the editor
+// to an include of its own, <scenery>_swiatla.scm
+struct editor_mode_light_switch
+{
+	std::string name;
+	glm::dvec3 location{0.0}; // of its launcher
+	std::vector<std::string> models; // the models it switches, by name
+	int when{0}; // 0: at an hour, 1: on at an hour and off at another, 2: on a key near its place, 3: once as the camera comes near
+	int from{1800}; // HHMM
+	int to{2300};
+	// the states the lights are given, as the model takes them: -1 leaves the light as it is
+	std::array<float, 8> on{-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
+	std::array<float, 8> off{-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
+	float reach{100.0f}; // m, of its launcher near the camera
+	std::string key;
+	float delay{0.0f};
+	float random{0.0f};
+	std::string cell; // the memory cell it waits for, empty for none
+	std::string text{"*"};
+	std::string value1{"*"};
+	std::string value2{"*"};
+	bool operator==(editor_mode_light_switch const &) const = default;
+};
+
+// the lights of a model as the editor changes them: its states, its colours and whether they change smoothly
+struct editor_mode_model_lights
+{
+	TAnimModel *model{nullptr};
+	std::array<float, 8> states{};
+	std::array<glm::vec3, 8> colours{};
+	bool transition{true};
+	bool operator==(editor_mode_model_lights const &) const = default;
+};
+
 class editor_mode : public application_mode, private editor_track::observer, private editor_services
 {
 
@@ -168,7 +202,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	struct stored_profile;
 	struct EditorSnapshot
 	{
-		enum class Action { Move, Rotate, Scale, Add, Delete, TrackEdit, Other, RoadEdit, Array, Bend, Terrain, Kilometrage, Sounds };
+		enum class Action { Move, Rotate, Scale, Add, Delete, TrackEdit, Other, RoadEdit, Array, Bend, Terrain, Kilometrage, Sounds, Lights };
 		// copy of a model an array made
 		struct array_copy
 		{
@@ -209,6 +243,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::optional<srk_hand_joints> hand_joints; // the joints of a station put by hand changed too, these were the ones before
 		std::optional<kilometrage::state> kilometrage; // the kilometrage before the change (Action::Kilometrage)
 		std::optional<std::vector<editor_mode_ambient>> sounds; // the ambient sounds before the change (Action::Sounds)
+		std::optional<std::vector<editor_mode_light_switch>> switches; // the switches of the lights before the change (Action::Sounds)
+		std::optional<editor_mode_model_lights> lights; // the lights of a model before the change (Action::Lights)
 		std::vector<array_copy> copies; // models an array added to the one it was made of
 		bool joined{false}; // undone and redone together with the change before it
 		std::shared_ptr<terrain_streamer::change const> terrain; // the heightmap terrain from before the change (Action::Terrain)
@@ -1178,13 +1214,15 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// each, written by the editor on each save to its own include, <scenery>_dzwieki.scm, which any build reads
 	bool m_events_open{false};
 	using ambient_sound = editor_mode_ambient;
+	using light_switch = editor_mode_light_switch;
 	struct events_state
 	{
 		bool loaded{false}; // the sounds of the file of the editor read
 		bool included{false}; // its include written in this session
 		std::vector<ambient_sound> sounds;
 		int selected{-1};
-		bool placing{false}; // the next click puts a new sound
+		bool placing{false}; // the tool chosen is Insert: a click on the ground puts a new sound
+		bool ranges{false}; // how far each sound is heard drawn around all of them, not around the selected one only
 		std::array<char, 512> file{}; // of the sound to be put
 		float height{2.0f}; // m over the ground
 		std::future<editor_file_dialog::result> dialog;
@@ -1193,6 +1231,20 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		int renaming{-1};
 		std::vector<ambient_sound> last; // as they were the frame before: a change is told by them
 		std::optional<std::vector<ambient_sound>> base; // as they were before the change being made, until it's done
+		// the switches of the lights, as the sounds
+		bool lights_included{false};
+		std::vector<light_switch> switches;
+		int switch_selected{-1};
+		std::vector<light_switch> switches_last;
+		std::optional<std::vector<light_switch>> switches_base;
+		std::array<char, 64> switch_rename{};
+		int switch_renaming{-1};
+		// the model selected, for its lights, and its lights before the change being made
+		TAnimModel *model{nullptr};
+		std::optional<editor_mode_model_lights> model_base;
+		int insert{0}; // what Insert puts: 0 a sound, 1 a switch of the lights
+		// the lights of the models as they were before the switch selected was tried out, to be put back
+		std::vector<editor_mode_model_lights> tried;
 		std::shared_ptr<sound_source> preview;
 		int previewing{-1};
 		std::string status;
@@ -1201,6 +1253,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void events_workspace(bool const Open);
 	void events_load();
 	void render_events_tool_options();
+	void render_events_insert_options();
+	void render_events_select_options();
+	void events_choose_tool(bool const Insert);
 	void render_events_selection();
 	void render_ambient_sound(ambient_sound &Sound);
 	void render_ambient_files(ambient_sound &Sound);
@@ -1214,6 +1269,23 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void events_track_changes();
 	void restore_sounds(EditorSnapshot &Snapshot);
 	void render_events_gizmo();
+	// the lights (application/editormodelights.cpp)
+	void lights_load();
+	bool light_switches(std::vector<std::string> &Rootstatements);
+	void events_pick(bool const Insert, bool const Add);
+	void events_picked(TAnimModel *Model, bool const Insert, bool const Add);
+	bool events_marker_click();
+	void events_deselect();
+	void lights_place(TAnimModel &Model);
+	std::string lights_name_model(TAnimModel &Model);
+	void render_model_lights(TAnimModel &Model);
+	void render_light_switch(light_switch &Switch);
+	void render_light_switch_when(light_switch &Switch);
+	void render_light_switch_states(light_switch &Switch, std::array<float, 8> &States, char const *Id);
+	void lights_try(light_switch const &Switch, bool const Off);
+	void lights_untry();
+	void draw_lights_overlay();
+	void restore_lights(EditorSnapshot &Snapshot);
 	bool events_click();
 	void draw_events_overlay();
 	void events_listen(int const Index);
@@ -2845,9 +2917,6 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		int index{0};
 	};
 	std::optional<switch_drive> find_switch_drive(TTrack const &Switch, bool Wait = true);
-	// the drive of a switch, in the turnout tool and in the Inspector: the one standing by it, or one to be put
-	void render_switch_drive(TTrack &Switch, bool const Named);
-	void render_standing_drive(TTrack &Switch, switch_drive const &Drive);
 	// the drives standing in the scenery by the switch each is set to, read from the files once a frame for all the switches
 	std::map<std::string, switch_drive> const &switch_drives_standing(bool Wait = true);
 	struct drives_standing

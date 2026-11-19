@@ -15,9 +15,11 @@ http://mozilla.org/MPL/2.0/.
 #include "stdafx.h"
 #include "application/editormode.h"
 #include "application/editormodeshared.h"
+#include "application/editormodeevents.h"
 #include "application/editorprojection.h"
 #include "application/editoruilayer.h"
 #include "audio/sound.h"
+#include "model/AnimModel.h"
 #include "rendering/renderer.h"
 #include "editor/editorFormat.hpp"
 #include "scene/scenelayers.h"
@@ -44,8 +46,109 @@ http://mozilla.org/MPL/2.0/.
 #include <string>
 #include <vector>
 
+namespace editor_events
+{
+
+// the name of a file of the editor: after the scenery, as the other files of the editor
+std::string editor_file(std::string_view const Suffix)
+{
+	if (scene::Layers.empty())
+		return {};
+	std::string root{scene::Layers.layer(scene::layer_handle{1}).name};
+	if (auto const slash{root.find_last_of("/\\")}; slash != std::string::npos)
+		root.erase(0, slash + 1);
+	if (auto const dot{root.rfind('.')}; dot != std::string::npos)
+		root.erase(dot);
+	return root.empty() ? std::string{} : root + std::string{Suffix};
+}
+
+// writes the include of the editor anew, when what it holds changed, and adds it once at the end of the scenery
+bool write_include(std::string const &File, std::string const &Content, bool const Empty, bool &Included, std::vector<std::string> &Rootstatements)
+{
+	auto const path{Global.asCurrentSceneryPath + File};
+	std::error_code error;
+	auto const exists{std::filesystem::exists(path, error)};
+	if (Empty && false == exists)
+		return false;
+	std::string current;
+	{
+		std::ifstream input{path, std::ios_base::binary};
+		current.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+	}
+	if (current != Content)
+	{
+		std::ofstream output{path, std::ios_base::binary | std::ios_base::trunc};
+		output << Content;
+		WriteLog("Editor: " + File + " written");
+	}
+	if (Included)
+		return false;
+	for (std::size_t handle = 1; handle <= scene::Layers.size(); ++handle)
+	{
+		auto name{scene::Layers.layer(static_cast<scene::layer_handle>(handle)).name};
+		std::ranges::replace(name, '\\', '/');
+		if (ToLower(name) == ToLower(File) || ToLower(name).ends_with("/" + ToLower(File)))
+			return false;
+	}
+	Rootstatements.push_back("include " + File + " end");
+	return true;
+}
+
+// an hour of a launcher, HHMM
+std::string hhmm(int const Time)
+{
+	// 0000 is read by the launcher as no hour at all: a minute past midnight then
+	auto const hours{std::clamp(Time / 100, 0, 23)};
+	auto const minutes{std::clamp(Time % 100, 0, 59)};
+	return format("%02d%02d", hours, hours == 0 && minutes == 0 ? 1 : minutes);
+}
+
+// a field of the line written as a word of the scenery: without the separators of the line, and * where there's nothing
+std::string word_of(std::string_view const Text)
+{
+	std::string word;
+	for (auto const character : Text)
+		if (character != '|' && character != ' ' && character != '\t' && character != '\r' && character != '\n')
+			word += character;
+	return word.empty() ? std::string{"*"} : word;
+}
+
+// the fields of the line, the empty ones and the one at the end included
+std::vector<std::string> fields_of(std::string_view Line)
+{
+	std::vector<std::string> fields;
+	while (true)
+	{
+		auto const bar{Line.find('|')};
+		fields.emplace_back(Line.substr(0, bar));
+		if (bar == std::string_view::npos)
+			return fields;
+		Line.remove_prefix(bar + 1);
+	}
+}
+
+// a name of a node and its events: letters, digits, _ and -, as the scenery reads them
+std::string name_of_typed(std::string_view const Typed)
+{
+	std::string name;
+	for (auto const character : Typed)
+	{
+		auto const letter{static_cast<unsigned char>(character)};
+		if (std::isalnum(letter) || character == '_' || character == '-')
+			name += static_cast<char>(std::tolower(letter));
+	}
+	return name;
+}
+
+} // namespace editor_events
+
 namespace
 {
+
+using editor_events::fields_of;
+using editor_events::hhmm;
+using editor_events::name_of_typed;
+using editor_events::word_of;
 
 char const *const kAmbientHeader{"// made by the scenery editor on each save: the ambient sounds of the scenery (Events, Ambient sounds)"};
 // the line of each sound the editor reads back: name|x|y|z|file|range|play|every|from|to, then the other settings. the starters
@@ -67,37 +170,6 @@ std::string text_of(std::filesystem::path const &Path)
 std::filesystem::path path_of(std::string_view const Text)
 {
 	return std::filesystem::path{std::u8string{Text.begin(), Text.end()}};
-}
-
-// the name of the file of the sounds: after the scenery, as the other files of the editor
-std::string ambient_file()
-{
-	if (scene::Layers.empty())
-		return {};
-	std::string root{scene::Layers.layer(scene::layer_handle{1}).name};
-	if (auto const slash{root.find_last_of("/\\")}; slash != std::string::npos)
-		root.erase(0, slash + 1);
-	if (auto const dot{root.rfind('.')}; dot != std::string::npos)
-		root.erase(dot);
-	return root.empty() ? std::string{} : root + "_dzwieki.scm";
-}
-
-std::string hhmm(int const Time)
-{
-	// 0000 is read by the launcher as no hour at all: a minute past midnight then
-	auto const hours{std::clamp(Time / 100, 0, 23)};
-	auto const minutes{std::clamp(Time % 100, 0, 59)};
-	return format("%02d%02d", hours, hours == 0 && minutes == 0 ? 1 : minutes);
-}
-
-// a field of the line written as a word of the scenery: without the separators of the line, and * where there's nothing
-std::string word_of(std::string_view const Text)
-{
-	std::string word;
-	for (auto const character : Text)
-		if (character != '|' && character != ' ' && character != '\t' && character != '\r' && character != '\n')
-			word += character;
-	return word.empty() ? std::string{"*"} : word;
 }
 
 // the files of the node: one, or a set it picks one of at random each time the scenery loads
@@ -222,20 +294,6 @@ std::string ambient_text(editor_mode_ambient const &Sound)
 	return text;
 }
 
-// the fields of the line, the empty ones and the one at the end included
-std::vector<std::string> fields_of(std::string_view Line)
-{
-	std::vector<std::string> fields;
-	while (true)
-	{
-		auto const bar{Line.find('|')};
-		fields.emplace_back(Line.substr(0, bar));
-		if (bar == std::string_view::npos)
-			return fields;
-		Line.remove_prefix(bar + 1);
-	}
-}
-
 void read_ambient_more(std::vector<std::string> const &Fields, editor_mode_ambient &Sound)
 {
 	// written by the editor before these were: they keep what they were made with
@@ -292,19 +350,6 @@ bool read_ambient(std::string_view Line, editor_mode_ambient &Sound)
 	return false == Sound.name.empty() && false == Sound.file.empty();
 }
 
-// a name of a node and its events: letters, digits, _ and -, as the scenery reads them
-std::string name_of_typed(std::string_view const Typed)
-{
-	std::string name;
-	for (auto const character : Typed)
-	{
-		auto const letter{static_cast<unsigned char>(character)};
-		if (std::isalnum(letter) || character == '_' || character == '-')
-			name += static_cast<char>(std::tolower(letter));
-	}
-	return name;
-}
-
 // the file as the sound node gives it, from the sounds folder of the game; a file from elsewhere is copied to sounds/<scenery>/
 std::string sound_file(std::string const &Chosen, std::string &Error)
 {
@@ -321,7 +366,7 @@ std::string sound_file(std::string const &Chosen, std::string &Error)
 	}
 	if (auto const relative{std::filesystem::relative(path, sounds, error)}; false == static_cast<bool>(error) && false == relative.empty() && false == text_of(relative).starts_with(".."))
 		return text_of(relative.generic_u8string());
-	auto stem{ambient_file()};
+	auto stem{editor_events::editor_file("_dzwieki.scm")};
 	if (auto const suffix{stem.rfind("_dzwieki.scm")}; suffix != std::string::npos)
 		stem.erase(suffix);
 	auto const folder{sounds / path_of(stem.empty() ? std::string{"scenery"} : stem)};
@@ -353,6 +398,7 @@ void editor_mode::events_workspace(bool const Open)
 	{
 		m_events.placing = false;
 		events_listen(-1);
+		lights_untry();
 	}
 }
 
@@ -362,7 +408,8 @@ void editor_mode::events_load()
 	if (state.loaded)
 		return;
 	state.loaded = true;
-	auto const file{ambient_file()};
+	lights_load();
+	auto const file{editor_events::editor_file("_dzwieki.scm")};
 	if (file.empty())
 		return;
 	std::ifstream input{Global.asCurrentSceneryPath + file, std::ios_base::binary};
@@ -380,43 +427,14 @@ void editor_mode::events_load()
 
 bool editor_mode::ambient_sounds(std::vector<std::string> &Rootstatements)
 {
-	auto const file{ambient_file()};
-	if (file.empty())
-		return false;
+	auto const file{editor_events::editor_file("_dzwieki.scm")};
 	// a scenery the sounds were never opened for: whatever its file holds stays as it is
-	if (false == m_events.loaded)
-		return false;
-	auto const path{Global.asCurrentSceneryPath + file};
-	std::error_code error;
-	auto const exists{std::filesystem::exists(path, error)};
-	if (m_events.sounds.empty() && false == exists)
+	if (file.empty() || false == m_events.loaded)
 		return false;
 	std::string content{std::string{kAmbientHeader} + "\r\n"};
 	for (auto const &sound : m_events.sounds)
 		content += ambient_text(sound);
-	std::string current;
-	{
-		std::ifstream input{path, std::ios_base::binary};
-		current.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
-	}
-	if (current != content)
-	{
-		std::ofstream output{path, std::ios_base::binary | std::ios_base::trunc};
-		output << content;
-		WriteLog("Editor: " + std::to_string(m_events.sounds.size()) + " ambient sounds written to " + file);
-	}
-	// the include once, at the end of the scenery
-	if (m_events.included)
-		return false;
-	for (std::size_t handle = 1; handle <= scene::Layers.size(); ++handle)
-	{
-		auto name{scene::Layers.layer(static_cast<scene::layer_handle>(handle)).name};
-		std::ranges::replace(name, '\\', '/');
-		if (ToLower(name) == ToLower(file) || ToLower(name).ends_with("/" + ToLower(file)))
-			return false;
-	}
-	Rootstatements.push_back("include " + file + " end");
-	return true;
+	return editor_events::write_include(file, content, m_events.sounds.empty(), m_events.included, Rootstatements);
 }
 
 
@@ -470,6 +488,14 @@ void editor_mode::events_place(glm::dvec3 const &Where)
 void editor_mode::events_delete()
 {
 	auto &state{m_events};
+	if (state.switch_selected >= 0 && state.switch_selected < static_cast<int>(state.switches.size()))
+	{
+		lights_untry();
+		state.switches.erase(state.switches.begin() + state.switch_selected);
+		state.switch_selected = -1;
+		state.status = STR("The switch deleted; it goes out of the scenery with the next save");
+		return;
+	}
 	if (state.selected < 0 || state.selected >= static_cast<int>(state.sounds.size()))
 		return;
 	events_listen(-1);
@@ -564,37 +590,77 @@ bool editor_mode::events_click()
 	auto &state{m_events};
 	if (ImGui::GetIO().WantCaptureMouse)
 		return false;
+	// a press on the gizmo of the selected one moves it, and keeps it selected, with either tool
+	auto const moving{state.selected >= 0 || state.switch_selected >= 0};
+	if (moving && gizmo_shown() && (ImGuizmo::IsOver() || ImGuizmo::IsUsing()))
+		return true;
+	// Insert puts one sound or one switch at each click, as the Insert of the surroundings puts a model
+	if (state.placing && state.insert == 1)
+	{
+		events_pick(true, false);
+		return true;
+	}
 	if (state.placing)
 	{
 		glm::dvec3 ground;
-		if (false == cursor_on_ground(ground))
-			return true;
-		events_place(ground);
-		// Shift+LMB puts one more
-		if (false == Global.shiftState)
-			state.placing = false;
+		if (state.file[0] == '\0')
+			state.status = STR("Choose the file of the sound first, in the tool options");
+		else if (cursor_on_ground(ground))
+			events_place(ground);
 		return true;
 	}
-	// a press on the gizmo of the selected one moves it, and keeps it selected
-	if (state.selected >= 0 && gizmo_shown() && (ImGuizmo::IsOver() || ImGuizmo::IsUsing()))
+	// a sound or a switch near the cursor on the screen, else the model with lights under it; Shift+LMB on a model adds it
+	// to the switch selected, or takes it out
+	auto const adding{Global.shiftState && state.switch_selected >= 0};
+	if (false == adding && events_marker_click())
 		return true;
-	// the sound nearest to the cursor on the screen
+	events_pick(false, adding);
+	return true;
+}
+
+// the sound or the switch whose mark is nearest to the cursor, within a few pixels
+bool editor_mode::events_marker_click()
+{
+	auto &state{m_events};
 	screen_projection const projection;
 	auto const &mouse{ImGui::GetIO().MousePos};
 	auto best{kPickPixels};
-	state.selected = -1;
-	for (std::size_t index = 0; index < state.sounds.size(); ++index)
-	{
+	int sound{-1};
+	int lights{-1};
+	auto const nearer = [&projection, &mouse, &best](glm::dvec3 const &Location) {
 		ImVec2 at;
-		if (false == projection.project(state.sounds[index].location, at))
-			continue;
-		if (auto const distance{std::hypot(at.x - mouse.x, at.y - mouse.y)}; distance < best)
+		if (false == projection.project(Location, at))
+			return false;
+		auto const distance{std::hypot(at.x - mouse.x, at.y - mouse.y)};
+		if (distance >= best)
+			return false;
+		best = distance;
+		return true;
+	};
+	for (std::size_t index = 0; index < state.sounds.size(); ++index)
+		if (nearer(state.sounds[index].location))
+			sound = static_cast<int>(index);
+	for (std::size_t index = 0; index < state.switches.size(); ++index)
+		if (nearer(state.switches[index].location))
 		{
-			best = distance;
-			state.selected = static_cast<int>(index);
+			lights = static_cast<int>(index);
+			sound = -1;
 		}
-	}
+	if (sound < 0 && lights < 0)
+		return false;
+	events_deselect();
+	state.selected = sound;
+	state.switch_selected = lights;
 	return true;
+}
+
+void editor_mode::events_deselect()
+{
+	auto &state{m_events};
+	lights_untry();
+	state.selected = -1;
+	state.switch_selected = -1;
+	state.model = nullptr;
 }
 
 void editor_mode::events_track_changes()
@@ -605,46 +671,84 @@ void editor_mode::events_track_changes()
 	if (state.sounds != state.last && false == state.base.has_value())
 		state.base = state.last;
 	state.last = state.sounds;
+	if (state.switches != state.switches_last && false == state.switches_base.has_value())
+		state.switches_base = state.switches_last;
+	state.switches_last = state.switches;
 	// done when nothing is held: a field typed in, a value dragged, the gizmo
-	if (false == state.base.has_value() || ImGui::IsAnyItemActive() || ImGuizmo::IsUsing())
+	if (ImGui::IsAnyItemActive() || ImGuizmo::IsUsing())
 		return;
-	auto before{std::move(*state.base)};
+	auto const push = [this](EditorSnapshot &&Step) {
+		if (m_max_history_size >= 0 && static_cast<int>(m_history.size()) >= m_max_history_size)
+			m_history.erase(m_history.begin(), m_history.begin() + (static_cast<int>(m_history.size()) - m_max_history_size + 1));
+		m_history.push_back(std::move(Step));
+		g_redo.clear();
+	};
+	if (state.base.has_value() && *state.base != state.sounds)
+	{
+		EditorSnapshot step;
+		step.action = EditorSnapshot::Action::Sounds;
+		step.node_name = STR("Ambient sounds");
+		step.sounds = std::move(*state.base);
+		push(std::move(step));
+	}
+	if (state.switches_base.has_value() && *state.switches_base != state.switches)
+	{
+		EditorSnapshot step;
+		step.action = EditorSnapshot::Action::Sounds;
+		step.node_name = STR("Switches of the lights");
+		step.switches = std::move(*state.switches_base);
+		push(std::move(step));
+	}
+	if (state.model_base.has_value())
+	{
+		EditorSnapshot step;
+		step.action = EditorSnapshot::Action::Lights;
+		step.node_name = state.model_base->model != nullptr ? state.model_base->model->name() : std::string{};
+		step.lights = std::move(*state.model_base);
+		push(std::move(step));
+	}
 	state.base.reset();
-	if (before == state.sounds)
-		return;
-	if (m_max_history_size >= 0 && static_cast<int>(m_history.size()) >= m_max_history_size)
-		m_history.erase(m_history.begin(), m_history.begin() + (static_cast<int>(m_history.size()) - m_max_history_size + 1));
-	EditorSnapshot step;
-	step.action = EditorSnapshot::Action::Sounds;
-	step.node_name = STR("Ambient sounds");
-	step.sounds = std::move(before);
-	m_history.push_back(std::move(step));
-	g_redo.clear();
+	state.switches_base.reset();
+	state.model_base.reset();
 }
 
 void editor_mode::restore_sounds(EditorSnapshot &Snapshot)
 {
 	auto &state{m_events};
-	if (false == Snapshot.sounds.has_value())
-		return;
-	events_listen(-1);
-	// what they are now goes to the step, for the way back
-	std::swap(*Snapshot.sounds, state.sounds);
 	state.loaded = true;
-	state.last = state.sounds;
-	state.base.reset();
 	state.placing = false;
-	if (state.selected >= static_cast<int>(state.sounds.size()))
-		state.selected = -1;
+	// what they are now goes to the step, for the way back
+	if (Snapshot.sounds.has_value())
+	{
+		events_listen(-1);
+		std::swap(*Snapshot.sounds, state.sounds);
+		state.last = state.sounds;
+		state.base.reset();
+		if (state.selected >= static_cast<int>(state.sounds.size()))
+			state.selected = -1;
+	}
+	if (Snapshot.switches.has_value())
+	{
+		lights_untry();
+		std::swap(*Snapshot.switches, state.switches);
+		state.switches_last = state.switches;
+		state.switches_base.reset();
+		if (state.switch_selected >= static_cast<int>(state.switches.size()))
+			state.switch_selected = -1;
+	}
 }
 
 void editor_mode::render_events_gizmo()
 {
 	auto &state{m_events};
 	m_gizmo_using = false;
-	if (state.selected < 0 || state.selected >= static_cast<int>(state.sounds.size()))
+	glm::dvec3 *location{nullptr};
+	if (state.selected >= 0 && state.selected < static_cast<int>(state.sounds.size()))
+		location = &state.sounds[state.selected].location;
+	else if (state.switch_selected >= 0 && state.switch_selected < static_cast<int>(state.switches.size()))
+		location = &state.switches[state.switch_selected].location;
+	if (location == nullptr)
 		return;
-	auto &sound{state.sounds[state.selected]};
 	ImGuizmo::BeginFrame();
 	ImGuizmo::SetOrthographic(Global.EditorOrtho);
 	ImGuiIO const &io{ImGui::GetIO()};
@@ -654,7 +758,7 @@ void editor_mode::render_events_gizmo()
 	float const aspect{io.DisplaySize.y > 0.0f ? io.DisplaySize.x / io.DisplaySize.y : 1.0f};
 	glm::mat4 const projection{editor_mode::projection_matrix(aspect)};
 	// a sound has no turn and no scale: it's moved only, along the axes of the world
-	glm::vec3 const relative{sound.location - camerapos};
+	glm::vec3 const relative{*location - camerapos};
 	std::array const translation{relative.x, relative.y, relative.z};
 	std::array const angles{0.0f, 0.0f, 0.0f};
 	std::array const scale{1.0f, 1.0f, 1.0f};
@@ -670,15 +774,16 @@ void editor_mode::render_events_gizmo()
 	std::array<float, 3> turned{};
 	std::array<float, 3> scaled{};
 	ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(matrix), moved.data(), turned.data(), scaled.data());
-	sound.location = camerapos + glm::dvec3{moved[0], moved[1], moved[2]};
-	if (state.previewing == state.selected && state.preview != nullptr)
-		state.preview->offset(glm::vec3{sound.location});
+	*location = camerapos + glm::dvec3{moved[0], moved[1], moved[2]};
+	if (state.selected >= 0 && state.previewing == state.selected && state.preview != nullptr)
+		state.preview->offset(glm::vec3{*location});
 }
 
 void editor_mode::draw_events_overlay()
 {
 	if (false == m_events_open)
 		return;
+	draw_lights_overlay();
 	auto const &state{m_events};
 	screen_projection const projection;
 	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
@@ -700,7 +805,7 @@ void editor_mode::draw_events_overlay()
 			continue;
 		drawlist->AddCircleFilled(at, chosen ? 7.0f : 5.0f, colour);
 		drawlist->AddText(ImVec2(at.x + 9.0f, at.y - 8.0f), colour, sound.name.c_str());
-		if (false == chosen)
+		if (false == chosen && false == state.ranges)
 			continue;
 		// how far it's heard, on the ground around it
 		std::vector<ImVec2> ring;
@@ -711,17 +816,51 @@ void editor_mode::draw_events_overlay()
 				ring.push_back(point);
 		}
 		if (ring.size() > 2)
-			drawlist->AddPolyline(ring.data(), static_cast<int>(ring.size()), IM_COL32(255, 190, 60, 160), ImDrawFlags_Closed, 1.5f);
+			drawlist->AddPolyline(ring.data(), static_cast<int>(ring.size()), chosen ? IM_COL32(255, 190, 60, 160) : IM_COL32(90, 200, 255, 110), ImDrawFlags_Closed, 1.5f);
 	}
 }
 
+
+void editor_mode::events_choose_tool(bool const Insert)
+{
+	m_events.placing = Insert;
+}
 
 void editor_mode::render_events_tool_options()
 {
 	auto &state{m_events};
 	events_load();
 	events_chosen();
-	ImGui::SeparatorText(STR_C("Ambient sounds"));
+	if (state.placing)
+	{
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		std::array const kinds{STR_C("A sound"), STR_C("A switch of the lights")};
+		ImGui::Combo("##eventsinsert", &state.insert, kinds.data(), static_cast<int>(kinds.size()));
+		if (state.insert == 1)
+		{
+			ImGui::SeparatorText(STR_C("Insert a switch of the lights"));
+			ImGui::PushTextWrapPos(0.0f);
+			ImGui::TextDisabled("%s", STR_C("LMB on a model with lights puts a switch of its lights by it: an event lights with its launcher, written on each save to an include of the editor. Shift+LMB with the Select tool adds more models to the switch selected"));
+			ImGui::PopTextWrapPos();
+		}
+		else
+			render_events_insert_options();
+	}
+	else
+		render_events_select_options();
+	if (false == state.status.empty())
+	{
+		ImGui::PushTextWrapPos(0.0f);
+		ImGui::TextDisabled("%s", state.status.c_str());
+		ImGui::PopTextWrapPos();
+	}
+}
+
+// Insert: the file of the sounds to be put, and how high over the ground
+void editor_mode::render_events_insert_options()
+{
+	auto &state{m_events};
+	ImGui::SeparatorText(STR_C("Insert a sound"));
 	ImGui::PushTextWrapPos(0.0f);
 	ImGui::TextDisabled("%s", STR_C("A sound heard around a place of the scenery: birds, a stream, a works. Each is a sound node with its events and an event launcher, written on each save to an include of the editor"));
 	ImGui::PopTextWrapPos();
@@ -736,32 +875,51 @@ void editor_mode::render_events_tool_options()
 	ImGui::EndDisabled();
 	ImGui::SetNextItemWidth(120.0f);
 	ImGui::DragFloat(STR_C("Over the ground (m)"), &state.height, 0.1f, 0.0f, 100.0f, "%.1f");
-	ImGui::BeginDisabled(state.file[0] == '\0');
-	if (main_button(state.placing ? STR_C("Click where it's to be heard...") : STR_C("Put a sound"), ImVec2(-FLT_MIN, tall_button_height())))
-		state.placing = false == state.placing;
-	ImGui::EndDisabled();
-	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("%s", STR_C("Then LMB on the ground puts it there; Shift+LMB puts one more"));
+	ImGui::TextDisabled("%s", STR_C("LMB on the ground: put a sound   Esc: back to Select"));
+}
+
+// Select: the sounds of the editor, picked in the list as in the view
+void editor_mode::render_events_select_options()
+{
+	auto &state{m_events};
+	ImGui::SeparatorText(STR_C("Ambient sounds"));
 	ImGui::TextDisabled("%s", STR_C("LMB: select a sound   Gizmo: move it   Del: delete   Esc: deselect"));
-	if (false == state.status.empty())
-	{
-		ImGui::PushTextWrapPos(0.0f);
-		ImGui::TextDisabled("%s", state.status.c_str());
-		ImGui::PopTextWrapPos();
-	}
 	ImGui::Text(STR_C("Sounds of the editor: %zu, sound nodes of the scenery: %zu"), state.sounds.size(), simulation::Sounds.sequence().size());
+	if (state.sounds.empty())
+		ImGui::TextDisabled("%s", STR_C("No sounds yet: the Insert tool (2) puts them"));
 	for (std::size_t index = 0; index < state.sounds.size(); ++index)
 		if (ImGui::Selectable(format("%s  (%s)##ambient%zu", state.sounds[index].name.c_str(), state.sounds[index].file.c_str(), index).c_str(), static_cast<int>(index) == state.selected))
+		{
+			events_deselect();
 			state.selected = static_cast<int>(index);
+		}
+	ImGui::SeparatorText(STR_C("Switches of the lights"));
+	ImGui::TextDisabled("%s", STR_C("LMB on a model with lights: its lights   Shift+LMB: add it to the switch selected, or take it out"));
+	for (std::size_t index = 0; index < state.switches.size(); ++index)
+		if (ImGui::Selectable(format(STR_C("%s  (models: %zu)##lights%zu"), state.switches[index].name.c_str(), state.switches[index].models.size(), index).c_str(), static_cast<int>(index) == state.switch_selected))
+		{
+			events_deselect();
+			state.switch_selected = static_cast<int>(index);
+		}
 }
 
 void editor_mode::render_events_selection()
 {
 	auto &state{m_events};
 	events_chosen();
+	if (state.model != nullptr)
+	{
+		render_model_lights(*state.model);
+		return;
+	}
+	if (state.switch_selected >= 0 && state.switch_selected < static_cast<int>(state.switches.size()))
+	{
+		render_light_switch(state.switches[state.switch_selected]);
+		return;
+	}
 	if (state.selected < 0 || state.selected >= static_cast<int>(state.sounds.size()))
 	{
-		ImGui::TextDisabled("%s", STR_C("Click a sound in the view, or in the list, to change it"));
+		ImGui::TextDisabled("%s", STR_C("Click a sound, a switch of the lights or a model with lights in the view, or in the list, to change it"));
 		return;
 	}
 	render_ambient_sound(state.sounds[state.selected]);
