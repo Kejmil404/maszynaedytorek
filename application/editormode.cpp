@@ -7784,13 +7784,25 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
                 if (Key == GLFW_KEY_1)
                     cables_finish();
                 m_cables.laying = Key == GLFW_KEY_2;
+                m_cables.wiring = false;
                 break;
             }
             handled = ui()->mode() != nodebank_panel::TRACK;
             if (handled)
                 choose_edit_mode(Key == GLFW_KEY_1 ? nodebank_panel::MODIFY : nodebank_panel::ADD);
             break;
-        case GLFW_KEY_3: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open && false == m_cables_open; if (handled) choose_edit_mode(nodebank_panel::BRUSH); break;
+        case GLFW_KEY_3:
+            if (m_cables_open)
+            {
+                cables_finish();
+                m_cables.laying = false;
+                m_cables.wiring = true;
+                break;
+            }
+            handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open;
+            if (handled)
+                choose_edit_mode(nodebank_panel::BRUSH);
+            break;
         case GLFW_KEY_4: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open && false == m_cables_open; if (handled) choose_edit_mode(nodebank_panel::FILL); break;
         case GLFW_KEY_5: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open && false == m_cables_open; if (handled) choose_edit_mode(nodebank_panel::COPY); break;
         default: handled = false; break;
@@ -7958,7 +7970,14 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         // the cables: the cable being laid dropped, then the Lay tool given up, then what's selected deselected
         if (is_press(Action) && m_cables_open)
         {
-            if (false == m_cables.laid.empty() && m_cables.extending < 0)
+            if (m_cables.wiring)
+            {
+                if (m_cables.poles.empty())
+                    m_cables.wiring = false;
+                else
+                    m_cables.poles.clear();
+            }
+            else if (false == m_cables.laid.empty() && m_cables.extending < 0)
                 cables_cancel();
             else if (m_cables.laying)
             {

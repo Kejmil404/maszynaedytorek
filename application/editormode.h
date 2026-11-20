@@ -163,6 +163,27 @@ struct editor_mode_scenery_cable
 	bool taken{false};
 };
 
+// the block of an *.inc template of a pole which tells the automatons of the wires (druty.exe) where they hang: the parameters of the
+// include holding its place and its turns, the points in the frame of the pole, and whether the points turn with it
+struct editor_mode_wiring_block
+{
+	bool found{false};
+	std::vector<int> parameters; // x, y, z, then the turns about y, x, z, by the numbers of the parameters (p1 is 1)
+	std::vector<glm::dvec3> points; // as the block gives them
+	bool turned{true}; // Obrot=Y
+	int axes{-1}; // how the three numbers of a point stand for the axes of the scenery, worked out against the model; -1 not yet
+};
+
+// a pole the wires are led along, as the editor read it
+struct editor_mode_wiring_pole
+{
+	std::uint32_t instance{0}; // the include of its template
+	TAnimModel const *model{nullptr}; // the model picked, of the template
+	std::string file; // of the template
+	glm::dvec3 origin{0.0};
+	std::vector<glm::dvec3> points; // where the wires hang, in the world; empty without the block
+};
+
 // the cables of the editor, with the lines of the scenery files taken over by them, as a step of the history holds them
 struct editor_mode_cables
 {
@@ -1274,6 +1295,15 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		int selected{-1};
 		int point{-1}; // of the cable selected
 		bool laying{false}; // the tool chosen is Lay: a click adds a point of the cable laid
+		// the tool chosen is Wiring: the poles clicked one after another, the wires led along them by the blocks of their templates
+		bool wiring{false};
+		std::vector<editor_mode_wiring_pole> poles;
+		std::map<std::string, editor_mode_wiring_block> blocks; // of the templates read, by their files
+		float sag_min{0.6f}; // m, the sag of a span picked at random between these
+		float sag_max{1.2f};
+		bool earth{true}; // the wire at the top, over the others, sags less
+		float earth_share{0.8f};
+		std::uint32_t seed{1}; // the sags picked again with another one
 		std::vector<glm::dvec3> laid; // the points of the cable being laid
 		int extending{-1}; // the cable the points laid go on at the end of, -1: a new one
 		cable model; // what a new cable gets
@@ -1319,6 +1349,13 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void restore_cables(EditorSnapshot &Snapshot);
 	// after a save: the lines taken over are gone from their files, the steps of the history which would give them back go too
 	void cables_saved();
+	// the wiring (application/editormodecables.cpp)
+	void wiring_pick(TAnimModel const *Model);
+	bool wiring_pole(TAnimModel const &Model, editor_mode_wiring_pole &Pole);
+	void wiring_order();
+	std::vector<cable> wiring_cables() const;
+	void wiring_insert();
+	void render_wiring_options();
 	void render_cables_gizmo();
 	void draw_cables_overlay();
 	// the points of the model, in the world: the corners of its triangles, each once

@@ -244,11 +244,20 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 	{
 		// as in the surroundings: Select picks the cables and their points, the gizmo moves a point, Lay lays new ones
 		auto &state{m_cables};
-		Buttons.push_back({icon::select, STR_C("Select"), "1", STR_C("LMB picks a cable or a point of it, the gizmo moves the point; Ctrl+LMB puts a point into a span, Del deletes"), false == state.laying, [this]() {
+		Buttons.push_back({icon::select, STR_C("Select"), "1", STR_C("LMB picks a cable or a point of it, the gizmo moves the point; Ctrl+LMB puts a point into a span, Del deletes"), false == state.laying && false == state.wiring, [this]() {
 			                   cables_finish();
 			                   m_cables.laying = false;
+			                   m_cables.wiring = false;
 		                   }});
-		Buttons.push_back({icon::cable, STR_C("Lay"), "2", STR_C("LMB puts the points a new cable hangs from; Enter ends it"), state.laying, [&state]() { state.laying = true; }});
+		Buttons.push_back({icon::cable, STR_C("Lay"), "2", STR_C("LMB puts the points a new cable hangs from; Enter ends it"), state.laying, [&state]() {
+			                   state.laying = true;
+			                   state.wiring = false;
+		                   }});
+		Buttons.push_back({icon::work_cables, STR_C("Wiring"), "3", STR_C("The poles clicked one after another, the wires led along them where the templates of the poles say they hang"), state.wiring, [this]() {
+			                   cables_finish();
+			                   m_cables.laying = false;
+			                   m_cables.wiring = true;
+		                   }});
 		Buttons.push_back({icon::magnet, STR_C("Snap"), nullptr, STR_C("A point goes onto a point of a model (an insulator) or of a cable near the cursor"), m_snap_objects, [this]() { m_snap_objects = false == m_snap_objects; }, true});
 		Buttons.push_back({icon::more, STR_C("Points"), nullptr, STR_C("The points of all the cables marked; else of the selected one only"), state.points, [&state]() { state.points = false == state.points; }});
 		Buttons.push_back({icon::objects, STR_C("Scenery lines"), nullptr, STR_C("The lines of the scenery files near the camera marked: they can be picked and taken over"), state.scenery_shown, [&state]() { state.scenery_shown = false == state.scenery_shown; }});

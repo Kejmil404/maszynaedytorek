@@ -15258,3 +15258,63 @@ msgstr "Linie scenerii"
 
 msgid "The lines of the scenery files near the camera marked: they can be picked and taken over"
 msgstr "Oznaczone linie z plików scenerii w pobliżu kamery: można je wybrać i przejąć"
+
+msgid "The points of %s lie %.1f m from its model on average: check the block of its template"
+msgstr "Punkty z %s leżą średnio %.1f m od jego modelu: sprawdź blok w jego szablonie"
+
+msgid "This model isn't of an include of a template: the wires are led along the poles placed with their templates"
+msgstr "Ten model nie pochodzi z includa szablonu: przewody prowadzi się po słupach wstawionych z ich szablonów"
+
+msgid "The template %s has no block for the automatons of the wires: the wires are led along poles which all have it"
+msgstr "Szablon %s nie ma bloku dla automatów drutowania: przewody prowadzi się tylko po słupach, które go mają"
+
+msgid "Wires led: %zu, over %zu poles; they go into the scenery with the next save"
+msgstr "Poprowadzono przewody: %zu, przez słupy: %zu; trafią do scenerii przy następnym zapisie"
+
+msgid "Wiring"
+msgstr "Drutowanie"
+
+msgid "LMB on the poles one after another (again: out of the list). The templates of the poles tell where the wires hang, in the block for the automatons of the wires (druty.exe); the wires are led along them as the points of each pole go across the line"
+msgstr "LPM na kolejnych słupach (ponownie: usuwa z listy). Szablony słupów mówią, gdzie wiszą przewody, w bloku dla automatów drutowania (druty.exe); przewody idą po nich tak, jak punkty każdego słupa układają się w poprzek linii"
+
+msgid "The selected models of the surroundings"
+msgstr "Zaznaczone modele z Otoczenia"
+
+msgid "The models selected in the surroundings (F2) taken as the poles, each of them once"
+msgstr "Modele zaznaczone w Otoczeniu (F2) brane jako słupy, każdy raz"
+
+msgid "Order along the line"
+msgstr "Uporządkuj wzdłuż linii"
+
+msgid "From the pole at an end, each to the nearest one left: for poles picked out of order"
+msgstr "Od słupa na końcu, każdy do najbliższego pozostałego: dla słupów klikniętych nie po kolei"
+
+msgid "Clear##wiring"
+msgstr "Wyczyść##wiring"
+
+msgid "A pole of a template without the block: click it again to take it out of the list"
+msgstr "Słup z szablonu bez bloku: kliknij go ponownie, żeby usunąć go z listy"
+
+msgid "Sag from (m)##wiring"
+msgstr "Zwis od (m)##wiring"
+
+msgid "Sag to (m)##wiring"
+msgstr "Zwis do (m)##wiring"
+
+msgid "Earth wire sags less##wiring"
+msgstr "Odgromowy zwisa mniej##wiring"
+
+msgid "The wire at the top of the pole, over the others by half a metre at least, sags this part of the span"
+msgstr "Przewód na szczycie słupa, co najmniej pół metra nad pozostałymi, zwisa o tę część zwisu przęsła"
+
+msgid "Pick the sags again"
+msgstr "Losuj zwisy ponownie"
+
+msgid "Each span gets another sag between the two above; the same picks give the same sags"
+msgstr "Każde przęsło dostaje inny zwis z zakresu powyżej; te same losowania dają te same zwisy"
+
+msgid "Lead %zu wires"
+msgstr "Poprowadź przewody: %zu"
+
+msgid "The poles clicked one after another, the wires led along them where the templates of the poles say they hang"
+msgstr "Kolejno klikane słupy; przewody prowadzone po nich tam, gdzie według szablonów słupów wiszą"

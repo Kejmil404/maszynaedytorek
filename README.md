@@ -47,6 +47,7 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 - Światła modeli w Inspektorze: tryb każdego światła (zgaszone, zapalone, miga, pulsuje, po zmroku), kolor i płynna zmiana, z podglądem.
 - Przełączniki świateł: event `lights` z launcherem (o godzinie, zapal/zgaś o dwóch godzinach, na klawisz, przy zbliżeniu), kilka modeli naraz, warunek na komórce pamięci, „Wypróbuj”.
 - Zakładka Kable (F7): prowadzenie kabli (`line_strip`) ze zwisem przęseł, przyciąganie do punktów modeli i innych kabli, edycja punktów gizmem, przejmowanie do edycji linii z plików scenerii.
+- Drutowanie: przewody prowadzone automatycznie po kolejno wskazanych słupach, według bloku dla druty.exe z ich plików .inc, z losowym zwisem przęseł w zadanym zakresie.
 
 
 ## Table of Contents

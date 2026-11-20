@@ -21,6 +21,7 @@ http://mozilla.org/MPL/2.0/.
 #include "application/editorprojection.h"
 #include "application/editoruilayer.h"
 #include "editor/editorFormat.hpp"
+#include "editor/editorIncludeInfo.hpp"
 #include "model/AnimModel.h"
 #include "rendering/renderer.h"
 #include "scene/scenelayers.h"
@@ -318,6 +319,116 @@ editor_mode_cables content_of(std::vector<editor_mode_cable> const &Cables, std:
 	return {Cables, Taken};
 }
 
+
+// --- the wiring: the blocks of the templates of the poles, as druty.exe read them ---
+
+// a line of the template, its comment marks taken off: the block may be commented out, so the simulator doesn't read it
+std::string_view uncommented(std::string_view Line)
+{
+	while (false == Line.empty() && (Line.front() == ' ' || Line.front() == '\t'))
+		Line.remove_prefix(1);
+	while (Line.starts_with("//"))
+	{
+		Line.remove_prefix(2);
+		while (false == Line.empty() && (Line.front() == ' ' || Line.front() == '\t'))
+			Line.remove_prefix(1);
+	}
+	while (false == Line.empty() && (Line.back() == '\r' || Line.back() == ' ' || Line.back() == '\t'))
+		Line.remove_suffix(1);
+	return Line;
+}
+
+std::vector<std::string> line_words(std::string_view const Line)
+{
+	std::vector<std::string> words;
+	std::istringstream input{std::string{Line}};
+	for (std::string word; input >> word;)
+		words.push_back(word);
+	return words;
+}
+
+bool numeric(std::string const &Word, double &Value)
+{
+	char *end{nullptr};
+	Value = std::strtod(Word.c_str(), &end);
+	return end != Word.c_str() && *end == '\0';
+}
+
+// the block: a line with the name of a template, then the numbers of the parameters of the place and the turns; a line of three
+// numbers for each point; Obrot=... at the end
+editor_mode_wiring_block read_block(std::string const &Text)
+{
+	editor_mode_wiring_block block;
+	std::istringstream input{Text};
+	bool inside{false};
+	for (std::string raw; std::getline(input, raw);)
+	{
+		auto const line{uncommented(raw)};
+		auto const words{line_words(line)};
+		if (false == inside)
+		{
+			// the name of a template, then the numbers of the parameters
+			if (words.size() < 4 || false == ToLower(words[0]).ends_with(".inc"))
+				continue;
+			std::vector<int> parameters;
+			for (std::size_t index = 1; index < words.size(); ++index)
+				if (double value; numeric(words[index], value) && value >= 1.0)
+					parameters.push_back(static_cast<int>(value));
+			if (parameters.size() < 3)
+				continue;
+			block.parameters = std::move(parameters);
+			inside = true;
+			continue;
+		}
+		if (ToLower(std::string{line}).starts_with("obrot"))
+		{
+			block.turned = ToLower(std::string{line}).find('y') != std::string::npos;
+			break;
+		}
+		std::array<double, 3> point{};
+		if (words.size() < 3 || false == numeric(words[0], point[0]) || false == numeric(words[1], point[1]) || false == numeric(words[2], point[2]))
+			break;
+		block.points.emplace_back(point[0], point[1], point[2]);
+	}
+	block.found = false == block.points.empty();
+	return block;
+}
+
+// the point of the block in the frame of the scenery, by one of the ways its numbers may stand for the axes: the height last, as
+// in 3ds Max, or in the middle, as in the scenery, and the other two either way
+glm::dvec3 axes_of(glm::dvec3 const &Point, int const Axes)
+{
+	auto const flip_x{(Axes & 1) != 0 ? -1.0 : 1.0};
+	auto const flip_z{(Axes & 2) != 0 ? -1.0 : 1.0};
+	if (Axes < 4)
+		return {Point.x * flip_x, Point.z, Point.y * flip_z};
+	return {Point.x * flip_x, Point.y, Point.z * flip_z};
+}
+
+int constexpr kAxesWays{8};
+
+// a number of the include, by the number of its parameter
+double parameter_value(std::vector<std::string> const &Values, std::vector<int> const &Parameters, std::size_t const Which)
+{
+	if (Which >= Parameters.size())
+		return 0.0;
+	auto const index{static_cast<std::size_t>(Parameters[Which] - 1)};
+	double value{0.0};
+	if (index < Values.size())
+		numeric(Values[index], value);
+	return value;
+}
+
+// a number in 0..1 of the seed and the span: the same on each build and each system, unlike the distributions of the library
+double random_of(std::uint64_t Value)
+{
+	Value += 0x9e3779b97f4a7c15ULL;
+	Value = (Value ^ (Value >> 30)) * 0xbf58476d1ce4e5b9ULL;
+	Value = (Value ^ (Value >> 27)) * 0x94d049bb133111ebULL;
+	Value ^= Value >> 31;
+	return static_cast<double>(Value >> 11) / static_cast<double>(1ULL << 53);
+}
+
 } // namespace
 
 void editor_mode::cables_workspace(bool const Open)
@@ -569,6 +680,15 @@ bool editor_mode::cables_click()
 	// a press on the gizmo of the point selected moves it
 	if (state.point >= 0 && gizmo_shown() && (ImGuizmo::IsOver() || ImGuizmo::IsUsing()))
 		return true;
+	if (state.wiring)
+	{
+		// the pole under the cursor, as the renderer tells it
+		GfxRenderer->Pick_Node_Callback([this](scene::basic_node *Node) {
+			if (press_in_view())
+				wiring_pick(dynamic_cast<TAnimModel const *>(Node));
+		});
+		return true;
+	}
 	if (state.laying)
 	{
 		if (false == state.snap.has_value())
@@ -799,7 +919,9 @@ void editor_mode::render_cables_tool_options()
 {
 	auto &state{m_cables};
 	cables_load();
-	if (state.laying)
+	if (state.wiring)
+		render_wiring_options();
+	else if (state.laying)
 	{
 		ImGui::SeparatorText(STR_C("Lay a cable"));
 		ImGui::PushTextWrapPos(0.0f);
@@ -995,6 +1117,28 @@ void editor_mode::draw_cables_overlay()
 			for (std::size_t at = 0; at + 1 < chain.size(); ++at)
 				piece(chain[at], chain[at + 1], chosen ? IM_COL32(120, 200, 255, 255) : IM_COL32(120, 200, 255, 140), chosen ? 3.0f : 1.5f);
 	}
+	// the poles of the wiring, their points and the wires to be led
+	if (state.wiring)
+	{
+		for (std::size_t index = 0; index < state.poles.size(); ++index)
+		{
+			auto const &pole{state.poles[index]};
+			if (ImVec2 screen; projection.project(pole.origin, screen))
+			{
+				drawlist->AddCircleFilled(screen, 7.0f, pole.points.empty() ? IM_COL32(255, 120, 60, 230) : IM_COL32(80, 220, 120, 230), 12);
+				drawlist->AddText(ImVec2(screen.x + 9.0f, screen.y - 8.0f), IM_COL32(255, 255, 255, 230), std::to_string(index + 1).c_str());
+			}
+			for (auto const &point : pole.points)
+				if (ImVec2 screen; projection.project(point, screen))
+					drawlist->AddCircle(screen, 4.0f, IM_COL32(80, 255, 120, 255), 8, 1.5f);
+		}
+		for (auto const &wire : wiring_cables())
+		{
+			auto const points{drawn_points(wire)};
+			for (std::size_t at = 0; at + 1 < points.size(); ++at)
+				piece(points[at], points[at + 1], IM_COL32(255, 220, 60, 220), 1.5f);
+		}
+	}
 	// the cable being laid, up to the cursor
 	if (state.laying)
 	{
@@ -1018,4 +1162,248 @@ void editor_mode::draw_cables_overlay()
 				drawlist->AddLine(ImVec2(screen.x, screen.y - 6.0f), ImVec2(screen.x, screen.y + 6.0f), IM_COL32(255, 255, 255, 200), 1.5f);
 			}
 		}
+}
+
+// the pole of the model picked: the include of its template, the block of the template, the points where the wires hang
+bool editor_mode::wiring_pole(TAnimModel const &Model, editor_mode_wiring_pole &Pole)
+{
+	auto &state{m_cables};
+	Pole = {};
+	Pole.model = &Model;
+	auto const instance{Model.m_instance};
+	if (false == scene::Layers.tracked(instance) || scene::Layers.instance(instance).file == nullptr)
+		return false;
+	auto const &include{scene::Layers.instance(instance)};
+	Pole.instance = instance;
+	Pole.file = *include.file;
+	std::string file;
+	std::vector<std::string> values;
+	if (false == editor_includes::parse_directive(scene::Layers.directive(instance), file, values))
+		return false;
+	auto lookup{state.blocks.find(Pole.file)};
+	if (lookup == state.blocks.end())
+	{
+		std::ifstream input{Global.asCurrentSceneryPath + Pole.file, std::ios_base::binary};
+		std::string const text{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+		lookup = state.blocks.emplace(Pole.file, read_block(text)).first;
+	}
+	auto &block{lookup->second};
+	glm::dvec3 const local{parameter_value(values, block.parameters, 0), parameter_value(values, block.parameters, 1), parameter_value(values, block.parameters, 2)};
+	Pole.origin = include.context.to_world(local);
+	if (false == block.found)
+		return false;
+	auto const yaw{glm::radians((block.turned ? parameter_value(values, block.parameters, 3) : 0.0) + static_cast<double>(include.context.rotation.y))};
+	auto const place = [&Pole, yaw](glm::dvec3 const &Point) { return Pole.origin + glm::rotateY(Point, yaw); };
+	// the way the numbers stand for the axes, worked out once a template: the one whose points lie nearest to the model of the pole
+	if (block.axes < 0)
+	{
+		auto const corners{model_points(Model)};
+		auto best{std::numeric_limits<double>::max()};
+		block.axes = 0;
+		for (int axes = 0; axes < kAxesWays && false == corners.empty(); ++axes)
+		{
+			double sum{0.0};
+			for (auto const &point : block.points)
+			{
+				auto const at{place(axes_of(point, axes))};
+				auto nearest{std::numeric_limits<double>::max()};
+				for (auto const &corner : corners)
+					nearest = std::min(nearest, glm::distance(at, corner));
+				sum += nearest;
+			}
+			if (sum < best)
+			{
+				best = sum;
+				block.axes = axes;
+			}
+		}
+		if (false == corners.empty() && best / static_cast<double>(block.points.size()) > 1.0)
+			state.status = format(STR_C("The points of %s lie %.1f m from its model on average: check the block of its template"), Pole.file.c_str(), best / static_cast<double>(block.points.size()));
+	}
+	for (auto const &point : block.points)
+		Pole.points.push_back(place(axes_of(point, block.axes)));
+	return true;
+}
+
+void editor_mode::wiring_pick(TAnimModel const *Model)
+{
+	auto &state{m_cables};
+	if (Model == nullptr)
+		return;
+	// a pole clicked again goes from the list
+	if (std::erase_if(state.poles, [Model](editor_mode_wiring_pole const &Pole) { return Pole.model == Model || (Pole.instance != 0 && Pole.instance == Model->m_instance); }) > 0)
+		return;
+	editor_mode_wiring_pole pole;
+	if (false == wiring_pole(*Model, pole) && pole.instance == 0)
+	{
+		state.status = STR("This model isn't of an include of a template: the wires are led along the poles placed with their templates");
+		return;
+	}
+	if (pole.points.empty())
+		state.status = format(STR_C("The template %s has no block for the automatons of the wires: the wires are led along poles which all have it"), pole.file.c_str());
+	state.poles.push_back(std::move(pole));
+}
+
+// the poles one after another along the line: from the one at an end, each to the nearest one left
+void editor_mode::wiring_order()
+{
+	auto &poles{m_cables.poles};
+	if (poles.size() < 3)
+		return;
+	glm::dvec3 middle{0.0};
+	for (auto const &pole : poles)
+		middle += pole.origin;
+	middle /= static_cast<double>(poles.size());
+	auto const first{std::ranges::max_element(poles, [&middle](auto const &Left, auto const &Right) { return glm::distance(Left.origin, middle) < glm::distance(Right.origin, middle); })};
+	std::iter_swap(poles.begin(), first);
+	for (auto at{poles.begin()}; std::next(at) != poles.end(); ++at)
+	{
+		auto const from{at->origin};
+		auto const next{std::min_element(std::next(at), poles.end(), [&from](auto const &Left, auto const &Right) { return glm::distance(Left.origin, from) < glm::distance(Right.origin, from); })};
+		std::iter_swap(std::next(at), next);
+	}
+}
+
+// the wires along the poles: the points of each pole in the same order across the line, from one side of it to the other and
+// from the bottom up, so the wires of a pole turned the other way don't cross; a sag picked at random for each span
+std::vector<editor_mode::cable> editor_mode::wiring_cables() const
+{
+	auto const &state{m_cables};
+	std::vector<cable> wires;
+	auto const &poles{state.poles};
+	std::size_t count{std::numeric_limits<std::size_t>::max()};
+	for (auto const &pole : poles)
+		count = std::min(count, pole.points.size());
+	if (poles.size() < 2 || count == 0)
+		return wires;
+	// the points of each pole in order
+	std::vector<std::vector<glm::dvec3>> ordered;
+	for (std::size_t index = 0; index < poles.size(); ++index)
+	{
+		auto const &before{poles[index == 0 ? 0 : index - 1].origin};
+		auto const &after{poles[index + 1 < poles.size() ? index + 1 : index].origin};
+		glm::dvec2 along{after.x - before.x, after.z - before.z};
+		along /= std::max(1e-6, glm::length(along));
+		glm::dvec2 const right{along.y, -along.x};
+		auto points{poles[index].points};
+		auto const origin{poles[index].origin};
+		std::ranges::sort(points, [&right, &origin](glm::dvec3 const &Left, glm::dvec3 const &Right) {
+			auto const left_side{std::round(glm::dot(glm::dvec2{Left.x - origin.x, Left.z - origin.z}, right) * 2.0)};
+			auto const right_side{std::round(glm::dot(glm::dvec2{Right.x - origin.x, Right.z - origin.z}, right) * 2.0)};
+			return left_side != right_side ? left_side < right_side : Left.y < Right.y;
+		});
+		points.resize(count);
+		ordered.push_back(std::move(points));
+	}
+	// the wire at the top of the first pole, over the others by half a metre at least: the earth wire
+	std::size_t top{count};
+	if (state.earth && count > 1)
+	{
+		auto const highest{std::ranges::max_element(ordered.front(), [](glm::dvec3 const &Left, glm::dvec3 const &Right) { return Left.y < Right.y; })};
+		auto const height{highest->y};
+		if (std::ranges::all_of(ordered.front(), [height, &highest](glm::dvec3 const &Point) { return &Point == &*highest || Point.y < height - 0.5; }))
+			top = static_cast<std::size_t>(highest - ordered.front().begin());
+	}
+	for (std::size_t wire = 0; wire < count; ++wire)
+	{
+		cable made{state.model};
+		for (auto const &points : ordered)
+			made.points.push_back(points[wire]);
+		double sum{0.0};
+		for (std::size_t span = 0; span + 1 < poles.size(); ++span)
+		{
+			// the same span sags the same for all its wires, as it's hung
+			auto const random{random_of((static_cast<std::uint64_t>(state.seed) << 32) ^ (span * 0x632be59bd9b4e019ULL) ^ static_cast<std::uint64_t>(std::llround(std::abs(poles[span].origin.x * 10.0 + poles[span].origin.z))))};
+			auto sag{static_cast<double>(state.sag_min) + random * static_cast<double>(std::max(0.0f, state.sag_max - state.sag_min))};
+			if (wire == top)
+				sag *= state.earth_share;
+			made.sags.push_back(static_cast<float>(sag));
+			sum += sag;
+		}
+		made.sag = static_cast<float>(sum / static_cast<double>(poles.size() - 1));
+		wires.push_back(std::move(made));
+	}
+	return wires;
+}
+
+void editor_mode::wiring_insert()
+{
+	auto &state{m_cables};
+	auto wires{wiring_cables()};
+	if (wires.empty())
+		return;
+	int number{1};
+	auto const taken = [&state](std::string const &Name) { return std::ranges::any_of(state.cables, [&Name](cable const &Other) { return Other.name == Name; }); };
+	for (auto &wire : wires)
+	{
+		auto name{format("przewod_%d", number)};
+		while (taken(name))
+			name = format("przewod_%d", ++number);
+		wire.name = name;
+		state.cables.push_back(std::move(wire));
+	}
+	state.status = format(STR_C("Wires led: %zu, over %zu poles; they go into the scenery with the next save"), wires.size(), state.poles.size());
+	state.poles.clear();
+	state.wiring = false;
+	cables_deselect();
+	state.selected = static_cast<int>(state.cables.size()) - 1;
+}
+
+void editor_mode::render_wiring_options()
+{
+	auto &state{m_cables};
+	ImGui::SeparatorText(STR_C("Wiring"));
+	ImGui::PushTextWrapPos(0.0f);
+	ImGui::TextDisabled("%s", STR_C("LMB on the poles one after another (again: out of the list). The templates of the poles tell where the wires hang, in the block for the automatons of the wires (druty.exe); the wires are led along them as the points of each pole go across the line"));
+	ImGui::PopTextWrapPos();
+	if (ImGui::SmallButton(STR_C("The selected models of the surroundings")))
+		for (auto *node : m_selection)
+			if (auto const *model{dynamic_cast<TAnimModel const *>(node)}; model != nullptr && std::ranges::none_of(state.poles, [model](editor_mode_wiring_pole const &Pole) { return Pole.instance == model->m_instance; }))
+				wiring_pick(model);
+	item_tooltip("The models selected in the surroundings (F2) taken as the poles, each of them once");
+	ImGui::SameLine();
+	ImGui::BeginDisabled(state.poles.size() < 3);
+	if (ImGui::SmallButton(STR_C("Order along the line")))
+		wiring_order();
+	ImGui::EndDisabled();
+	item_tooltip("From the pole at an end, each to the nearest one left: for poles picked out of order");
+	ImGui::SameLine();
+	if (ImGui::SmallButton(STR_C("Clear##wiring")))
+		state.poles.clear();
+	for (std::size_t index = 0; index < state.poles.size(); ++index)
+	{
+		auto const &pole{state.poles[index]};
+		auto const described{false == pole.points.empty()};
+		ImGui::TextColored(described ? ImVec4(0.6f, 0.9f, 0.6f, 1.0f) : ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "%zu. %s  (%zu)", index + 1, pole.file.c_str(), pole.points.size());
+	}
+	if (std::ranges::any_of(state.poles, [](editor_mode_wiring_pole const &Pole) { return Pole.points.empty(); }))
+		ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "%s", STR_C("A pole of a template without the block: click it again to take it out of the list"));
+	if (begin_fields("##wiringsag", 0.45f))
+	{
+		field_row("Sag from (m)##wiring");
+		ImGui::DragFloat("##sagmin", &state.sag_min, 0.05f, 0.0f, 30.0f, "%.2f");
+		field_row("Sag to (m)##wiring");
+		ImGui::DragFloat("##sagmax", &state.sag_max, 0.05f, 0.0f, 30.0f, "%.2f");
+		state.sag_max = std::max(state.sag_max, state.sag_min);
+		field_row("Earth wire sags less##wiring");
+		ImGui::Checkbox("##earth", &state.earth);
+		item_tooltip("The wire at the top of the pole, over the others by half a metre at least, sags this part of the span");
+		if (state.earth)
+		{
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(-FLT_MIN);
+			ImGui::SliderFloat("##earthshare", &state.earth_share, 0.3f, 1.0f, "%.2f");
+		}
+		ImGui::EndTable();
+	}
+	render_cable_model(state.model);
+	if (ImGui::Button(STR_C("Pick the sags again")))
+		++state.seed;
+	item_tooltip("Each span gets another sag between the two above; the same picks give the same sags");
+	ImGui::SameLine();
+	auto const wires{wiring_cables()};
+	ImGui::BeginDisabled(wires.empty());
+	if (main_button(format(STR_C("Lead %zu wires"), wires.size()).c_str(), ImVec2(-FLT_MIN, 0.0f)))
+		wiring_insert();
+	ImGui::EndDisabled();
 }
