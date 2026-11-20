@@ -171,15 +171,67 @@ std::string kdialog_command(request const &Request)
 	return "kdialog --title " + shell_word(Request.title) + " --getopenfilename . " + shell_word(patterns + " | " + Request.filter_name) + (Request.many ? " --multiple --separate-output" : "");
 }
 
+// the dialog of GTK through python3 and its gi, which Cinnamon and GNOME have even where zenity isn't installed: the same window
+// the file managers of these desktops open
+char const *const kGtkDialog{R"(import sys
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+title, folder, many, name = sys.argv[1], sys.argv[2] == '1', sys.argv[3] == '1', sys.argv[4]
+action = Gtk.FileChooserAction.SELECT_FOLDER if folder else Gtk.FileChooserAction.OPEN
+dialog = Gtk.FileChooserDialog(title=title, action=action)
+dialog.add_buttons('_Cancel', Gtk.ResponseType.CANCEL, '_Open', Gtk.ResponseType.OK)
+dialog.set_select_multiple(many and not folder)
+if len(sys.argv) > 5 and not folder:
+    chosen = Gtk.FileFilter()
+    chosen.set_name(name)
+    for extension in sys.argv[5:]:
+        chosen.add_pattern('*.' + extension.lower())
+        chosen.add_pattern('*.' + extension.upper())
+    dialog.add_filter(chosen)
+    every = Gtk.FileFilter()
+    every.set_name('*')
+    every.add_pattern('*')
+    dialog.add_filter(every)
+if dialog.run() == Gtk.ResponseType.OK:
+    for path in dialog.get_filenames():
+        print(path)
+)"};
+
+bool have_gtk()
+{
+	return have("python3") && std::system("python3 -c \"import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk\" >/dev/null 2>&1") == 0;
+}
+
+std::string gtk_command(request const &Request)
+{
+	std::string command{"python3 -c " + shell_word(kGtkDialog) + ' ' + shell_word(Request.title) + (Request.folder ? " 1" : " 0") + (Request.many ? " 1 " : " 0 ") + shell_word(Request.filter_name)};
+	for (auto const &extension : Request.extensions)
+		command += ' ' + shell_word(extension);
+	return command;
+}
+
+// the first of the dialogs the system has: zenity, kdialog, yad and qarma read the words of zenity or of their own, GTK through python3
+std::string dialog_command(request const &Request)
+{
+	if (have("zenity"))
+		return zenity_command(Request);
+	if (have("kdialog"))
+		return kdialog_command(Request);
+	if (have("yad"))
+		return "yad" + zenity_command(Request).substr(6);
+	if (have("qarma"))
+		return "qarma" + zenity_command(Request).substr(6);
+	if (have_gtk())
+		return gtk_command(Request);
+	return {};
+}
+
 result open_other(request const &Request)
 {
 	result answer;
-	std::string command;
-	if (have("zenity"))
-		command = zenity_command(Request);
-	else if (have("kdialog"))
-		command = kdialog_command(Request);
-	else
+	auto const command{dialog_command(Request)};
+	if (command.empty())
 	{
 		answer.available = false;
 		return answer;

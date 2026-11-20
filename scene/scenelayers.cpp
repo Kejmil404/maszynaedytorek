@@ -138,6 +138,7 @@ void node_layers::clear()
 	m_lit.clear();
 	m_shapes.clear();
 	m_shapeserased = false;
+	m_lines.clear();
 	m_templates.clear();
 	m_instances.clear();
 	m_instance = 0;
@@ -514,6 +515,57 @@ void node_layers::shape(material_handle const Material, source_span const &Span)
 		return;
 	}
 	m_shapes.push_back({current, Span, Material, false});
+}
+
+void node_layers::lines(source_span const &Span)
+{
+	auto const current{handle()};
+	if (false == valid(current) || false == Span.valid() || m_instance != 0)
+	{
+		return;
+	}
+	m_lines.push_back({++m_linesid, current, Span, m_context, false});
+}
+
+std::string node_layers::lines_text(lines_source const &Lines) const
+{
+	std::ifstream input{path(Lines.layer), std::ios_base::binary};
+	if (false == input.is_open() || false == Lines.span.valid())
+	{
+		return {};
+	}
+	input.seekg(Lines.span.begin);
+	std::string text(static_cast<std::size_t>(Lines.span.end - Lines.span.begin), '\0');
+	input.read(text.data(), static_cast<std::streamsize>(text.size()));
+	text.resize(static_cast<std::size_t>(input.gcount()));
+	return text;
+}
+
+bool node_layers::erase_lines(std::uint32_t const Id, bool const Erase)
+{
+	auto const lookup{std::find_if(std::begin(m_lines), std::end(m_lines), [Id](lines_source const &Lines) { return Lines.id == Id; })};
+	if (lookup == std::end(m_lines) || (Erase && false == writable(lookup->layer)))
+	{
+		return false;
+	}
+	if (lookup->erased == Erase)
+	{
+		return true;
+	}
+	lookup->erased = Erase;
+	auto const span{lookup->span};
+	auto const layer{lookup->layer};
+	if (Erase)
+	{
+		m_erased.emplace_back(layer, span);
+		// the binary terrain file holds the lines too: it's made again on the next load
+		m_shapeserased = true;
+	}
+	else
+	{
+		m_erased.erase(std::remove_if(std::begin(m_erased), std::end(m_erased), [&](auto const &Erased) { return Erased.first == layer && Erased.second.begin == span.begin && Erased.second.end == span.end; }), std::end(m_erased));
+	}
+	return true;
 }
 
 std::pair<std::size_t, std::size_t> node_layers::erase_shapes(std::set<material_handle> const &Materials, std::set<layer_handle> const *Layers)

@@ -868,6 +868,19 @@ bool terrain_streamer::height_at(double X, double Z, double &Height) const
 	return true;
 }
 
+bool terrain_streamer::height_reading(double const X, double const Z, double &Height)
+{
+	if (height_at(X, Z, Height))
+		return true;
+	if (false == m_active || false == exists(heightmap::chunk_at(X, Z)))
+		return false;
+	auto const *chunk{load_now(heightmap::chunk_at(X, Z))};
+	if (chunk == nullptr || false == chunk->contains(X, Z))
+		return false;
+	Height = chunk->height_at(X, Z);
+	return true;
+}
+
 void terrain_streamer::gather_triangles(glm::dvec2 const &Min, glm::dvec2 const &Max, std::vector<std::array<glm::dvec3, 3>> &Out) const
 {
 	auto const first{heightmap::chunk_at(Min.x, Min.y)};

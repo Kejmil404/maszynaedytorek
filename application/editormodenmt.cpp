@@ -869,6 +869,14 @@ bool editor_mode::nmt_ahead(double const X, double const Z, double &Height) cons
 	return true;
 }
 
+bool editor_mode::nmt_fit_height(double const X, double const Z, double &Height)
+{
+	// the chunks far from the camera read from their files: the selected tracks may be anywhere in the scenery
+	if (m_nmt_state.scenery_terrain)
+		return m_streamer.height_reading(X, Z, Height);
+	return m_nmt.height(X, Z, Height);
+}
+
 bool editor_mode::nmt_ground(double const X, double const Z, double &Height) const
 {
 	if (nmt_ahead(X, Z, Height))
@@ -1589,7 +1597,10 @@ void editor_mode::render_nmt_all_tracks(bool const Terrain_panel)
 {
 	auto &state{m_nmt_state};
 	auto const busy{nmt_busy()};
-	auto const placed{m_nmt.placed()};
+	// the terrain of the scenery when it has some, the first time; the choice kept after
+	if (state.source < 0)
+		state.source = m_streamer.active() ? 0 : 1;
+	auto const placed{state.source == 0 ? m_streamer.active() : m_nmt.placed()};
 	std::size_t unfitted{0}, all{0}, hand{0};
 	std::unordered_map<std::string, int> named;
 	for (auto const *track : simulation::Paths.sequence())
@@ -1607,10 +1618,17 @@ void editor_mode::render_nmt_all_tracks(bool const Terrain_panel)
 		ImGui::TextDisabled("%s", Text);
 		ImGui::PopTextWrapPos();
 	}};
+	// the heights the tracks go onto: the terrain the scenery has, loaded from its files or imported, or the model fetched
+	ImGui::BeginDisabled(busy);
+	std::array const sources{STR_C("Terrain of the scenery (the chunks loaded)"), STR_C("Terrain model (NMT, fetched)")};
+	ImGui::SetNextItemWidth(-FLT_MIN);
+	ImGui::Combo("##nmtsource", &state.source, sources.data(), static_cast<int>(sources.size()));
+	ImGui::EndDisabled();
+	item_tooltip("Where the heights of Tracks onto the terrain and Only the selected come from: the chunks of the terrain the scenery has now, read from its files or imported from DEM, as they are; or the terrain model fetched, with the chunks made from it after. The other two ways use the model");
 	if (false == placed)
 	{
 		ImGui::PushTextWrapPos(0.0f);
-		ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "%s", STR_C("First the place of the scenery on the map: F5 Terrain, Terrain model (NMT), step 1"));
+		ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "%s", state.source == 0 ? STR_C("The scenery has no heightmap terrain: make or import some in F5 Terrain") : STR_C("First the place of the scenery on the map: F5 Terrain, Terrain model (NMT), step 1"));
 		ImGui::PopTextWrapPos();
 	}
 	// three ways as cards, each with a sketch and the case it's for, the one to take first lit: what to click is seen at a glance.
@@ -2756,7 +2774,7 @@ std::size_t editor_mode::nmt_level_turntables()
 				fitted.push_back(end.point.y);
 			auto const away{geometry::plan_of(end.point - table.centre) / std::max(1e-6, geometry::plan_distance(end.point, table.centre))};
 			for (int metre = 0; metre <= 6; ++metre)
-				if (double height; m_nmt.height(end.point.x + away.x * (kPitWall + metre), end.point.z + away.y * (kPitWall + metre), height))
+				if (double height; nmt_fit_height(end.point.x + away.x * (kPitWall + metre), end.point.z + away.y * (kPitWall + metre), height))
 					model.push_back(height + state.offset + track->rail_height());
 		}
 		auto &heights{fitted.empty() ? model : fitted};
@@ -2843,6 +2861,12 @@ void editor_mode::nmt_auto_start(bool const Unfitted)
 	state.error.clear();
 	state.under = false;
 	state.unfitted = Unfitted;
+	state.scenery_terrain = state.source == 0;
+	if (state.scenery_terrain && false == ensure_terrain())
+	{
+		state.status = STR("The heightmap terrain can't be opened");
+		return;
+	}
 	state.only = std::exchange(state.only_next, {});
 	state.result = false;
 	state.findings.clear();
@@ -2873,7 +2897,7 @@ void editor_mode::nmt_auto_start(bool const Unfitted)
 	state.run = true;
 	state.fetch_most = 0;
 	state.stage = nmt_state::automatic::fetching;
-	state.status = STR("Fetching the terrain model under the tracks...");
+	state.status = state.scenery_terrain ? STR("Reading the terrain of the scenery under the tracks...") : STR("Fetching the terrain model under the tracks...");
 }
 
 bool editor_mode::nmt_fit_line(TTrack &Track, std::function<bool(TTrack const *)> const &Fitted, bool const Laid)
@@ -3175,7 +3199,7 @@ bool editor_mode::nmt_fit_line(TTrack &Track, std::function<bool(TTrack const *)
 		auto const *track{sample.span < profile.route.spans.size() ? profile.route.spans[sample.span].track : nullptr};
 		sampled[i] = sample.chainage;
 		plan[i] = {sample.position.x, sample.position.z};
-		if (double height; no_ground[i] == 0 && track != nullptr && shapes_ground(*track) && false == in_pit(sample.position) && m_nmt.height(sample.position.x, sample.position.z, height))
+		if (double height; no_ground[i] == 0 && track != nullptr && shapes_ground(*track) && false == in_pit(sample.position) && nmt_fit_height(sample.position.x, sample.position.z, height))
 			model[i] = height + m_nmt_state.offset + track->rail_height();
 	}
 	// a path which the line crosses on its level, as authored, makes a crossing with it: over it the two lie in one plane, the
@@ -4610,9 +4634,10 @@ void editor_mode::nmt_auto_step()
 	auto &state{m_nmt_state};
 	if (state.stage == nmt_state::automatic::fetching)
 	{
+		// the chunks of the scenery are there already, the model is fetched
 		bool all{true};
 		for (auto const &place : state.probes)
-			all = nmt_ready(glm::dvec2{place.position.x, place.position.z} - glm::dvec2{1.0}, glm::dvec2{place.position.x, place.position.z} + glm::dvec2{1.0}) && all;
+			all = state.scenery_terrain || (nmt_ready(glm::dvec2{place.position.x, place.position.z} - glm::dvec2{1.0}, glm::dvec2{place.position.x, place.position.z} + glm::dvec2{1.0}) && all);
 		auto const waiting{m_nmt.waiting()};
 		state.status = format(STR_P("Fetching the terrain model under the tracks: %zu square left", "Fetching the terrain model under the tracks: %zu squares left", waiting), waiting);
 		if (false == all)
@@ -4623,17 +4648,23 @@ void editor_mode::nmt_auto_step()
 		std::vector<double> differences, kept;
 		auto const first_kept{state.probes.size() - std::min(state.probes_kept, state.probes.size())};
 		for (std::size_t i = 0; i < state.probes.size(); ++i)
-			if (double height; m_nmt.height(state.probes[i].position.x, state.probes[i].position.z, height))
+			if (double height; nmt_fit_height(state.probes[i].position.x, state.probes[i].position.z, height))
 				(i < first_kept ? differences : kept).push_back(height - state.probes[i].crown);
 		if (differences.empty())
 		{
 			state.stage = nmt_state::automatic::idle;
-			state.status = STR("The terrain model has no data under the tracks: is the scenery placed where it is?");
+			state.status = state.scenery_terrain ? STR("The terrain of the scenery has no chunks under the tracks") : STR("The terrain model has no data under the tracks: is the scenery placed where it is?");
 			return;
 		}
 		std::nth_element(differences.begin(), differences.begin() + differences.size() / 2, differences.end());
 		auto const lift{differences[differences.size() / 2]};
-		if (state.unfitted && false == kept.empty())
+		if (state.scenery_terrain)
+		{
+			// the chunks of the scenery are at its heights already: nothing to offset
+			state.offset = 0.0;
+			WriteLog("Editor: NMT - the tracks go onto the terrain of the scenery as it is", logtype::generic);
+		}
+		else if (state.unfitted && false == kept.empty())
 		{
 			// the tracks fitted already stay where they are, and the model keeps the offset they were fitted to, told by them
 			std::nth_element(kept.begin(), kept.begin() + kept.size() / 2, kept.end());
@@ -4759,5 +4790,16 @@ void editor_mode::nmt_auto_step()
 	state.turntables.clear();
 	state.stage = nmt_state::automatic::idle;
 	WriteLog("Editor: NMT - " + state.status, logtype::generic);
-	nmt_make(nmt_keys_along_tracks(), true);
+	if (false == state.scenery_terrain)
+	{
+		nmt_make(nmt_keys_along_tracks(), true);
+		return;
+	}
+	// the terrain of the scenery isn't made anew from the model: only the formations along the tracks are shaped in it
+	state.run = false;
+	if (state.shape)
+	{
+		nmt_shape_tracks();
+		state.status += format(STR_P("; the formation of %zu path shaped", "; the formation of %zu paths shaped", state.shaped), state.shaped);
+	}
 }

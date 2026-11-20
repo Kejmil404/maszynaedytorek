@@ -150,6 +150,17 @@ struct shape_source
 	bool erased{false}; // the definition goes from the file on save
 };
 
+// definition of lines (lines, line_strip, line_loop) in a scenery layer file: the editor reads them from it and can take them
+// over, the definition then going from the file on save
+struct lines_source
+{
+	std::uint32_t id{0}; // stays the same while the definition is in its file
+	layer_handle layer{null_handle};
+	source_span span;
+	layer_context context; // placement in effect at the definition
+	bool erased{false}; // the definition goes from the file on save
+};
+
 struct save_result
 {
 	bool success{false};
@@ -276,6 +287,23 @@ class node_layers
 	{
 		return m_shapes;
 	}
+	// stores location of lines defined directly in the layer file being loaded
+	void lines(source_span const &Span);
+	std::vector<lines_source> const &lines() const
+	{
+		return m_lines;
+	}
+	// text of the definition of specified lines, as their file holds it; empty if it can't be read
+	std::string lines_text(lines_source const &Lines) const;
+	// drops the definition of specified lines from its file on save, or keeps it there again. returns: false if the lines aren't
+	// known, or their file can't be rewritten
+	bool erase_lines(std::uint32_t const Id, bool const Erase);
+	// lines added to the scenery or changed outside of its layer files: the binary terrain file, which holds them, is made again on
+	// the next load
+	void lines_changed()
+	{
+		m_shapeserased = true;
+	}
 	// drops the definitions of the shapes of specified materials from the writable layer files on save; only from specified layers, if given.
 	// returns: amount of the shapes to drop, and of the ones which stay as their files can't be rewritten
 	std::pair<std::size_t, std::size_t> erase_shapes(std::set<material_handle> const &Materials, std::set<layer_handle> const *Layers = nullptr);
@@ -391,6 +419,8 @@ class node_layers
 	std::unordered_set<basic_node const *> m_lit; // models whose lights were changed since the load or the last save
 	std::vector<shape_source> m_shapes;
 	bool m_shapeserased{false}; // the binary terrain file holds shapes which the save drops
+	std::vector<lines_source> m_lines;
+	std::uint32_t m_linesid{0};
 	std::set<std::string> m_templates; // *.inc templates used by the scenery
 	std::vector<include_instance> m_instances; // includes of the templates; instance handle is index in the vector + 1
 	instance_handle m_instance{0}; // helper, include whose template is being loaded

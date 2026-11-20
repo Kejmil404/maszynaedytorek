@@ -150,6 +150,7 @@ class editor_ui : public ui_layer
 		roads,
 		terrain,
 		events,
+		cables,
 		count_
 	};
 	void set_workspace(workspace const Workspace)

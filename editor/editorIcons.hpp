@@ -67,6 +67,9 @@ enum class icon
 	work_events,
 	sound,
 	eraser,
+	// the field of work of the cables, a cable laid
+	work_cables,
+	cable,
 	count
 };
 

@@ -15084,3 +15084,177 @@ msgstr "%s  (modele: %zu)##lights%zu"
 
 msgid "Click a sound, a switch of the lights or a model with lights in the view, or in the list, to change it"
 msgstr "Kliknij dźwięk, przełącznik świateł albo model ze światłami w widoku lub na liście, żeby go zmienić"
+
+msgid "%s laid; it goes into the scenery with the next save"
+msgstr "Poprowadzono %s; trafi do scenerii przy następnym zapisie"
+
+msgid "The cable deleted; it goes out of the scenery with the next save"
+msgstr "Usunięto kabel; zniknie ze scenerii przy następnym zapisie"
+
+msgid "The lines can't be taken over: the file %s can't be changed"
+msgstr "Nie można przejąć linii: pliku %s nie da się zmienić"
+
+msgid "Taken over: on save the lines go from their file to the file of the cables; the game shows them as they were until the scenery is loaded again"
+msgstr "Przejęto: przy zapisie linie przeniosą się z ich pliku do pliku kabli; do ponownego wczytania scenerii gra pokazuje je tak jak wcześniej"
+
+msgid "Cables"
+msgstr "Kable"
+
+msgid "Colour##cable"
+msgstr "Kolor##cable"
+
+msgid "Black##cable"
+msgstr "Czarny##cable"
+
+msgid "Copper##cable"
+msgstr "Miedź##cable"
+
+msgid "Aluminium##cable"
+msgstr "Aluminium##cable"
+
+msgid "Grey##cable"
+msgstr "Szary##cable"
+
+msgid "Width (px)##cable"
+msgstr "Grubość (px)##cable"
+
+msgid "In pixels on the screen, as the game draws the lines: the same near and far. 1 to 2 for the wires of a power line"
+msgstr "W pikselach na ekranie, tak jak gra rysuje linie: tak samo z bliska i z daleka. 1–2 dla przewodów linii energetycznej"
+
+msgid "Sag (m)##cable"
+msgstr "Zwis (m)##cable"
+
+msgid "How far the middle of each span hangs below the straight line between its points; a span may have a sag of its own"
+msgstr "O ile środek każdego przęsła zwisa poniżej prostej między jego punktami; przęsło może mieć własny zwis"
+
+msgid "Pieces a span##cable"
+msgstr "Odcinków na przęsło##cable"
+
+msgid "The straight pieces a sagging span is drawn with: more is rounder, and more for the game to draw"
+msgstr "Proste odcinki, z których rysuje się zwisające przęsło: więcej to łagodniejszy łuk i więcej do rysowania dla gry"
+
+msgid "Seen up to (m)##cable"
+msgstr "Widoczny do (m)##cable"
+
+msgid "0: from any distance"
+msgstr "0: z każdej odległości"
+
+msgid "Lay a cable"
+msgstr "Prowadzenie kabla"
+
+msgid "LMB puts the points the cable hangs from, one after another; Enter or LMB on the last point ends it, Esc drops it. With the magnet on a point goes onto a point of a model (an insulator) or of another cable near the cursor"
+msgstr "LPM stawia kolejne punkty zawieszenia kabla; Enter albo LPM na ostatnim punkcie go kończy, Esc porzuca. Z włączonym magnesem punkt trafia na punkt modelu (izolator) albo innego kabla przy kursorze"
+
+msgid "Over the ground (m)##cable"
+msgstr "Nad ziemią (m)##cable"
+
+msgid "The height of a point put on the ground, not onto a model or a cable"
+msgstr "Wysokość punktu postawionego na ziemi, a nie na modelu czy kablu"
+
+msgid "Points laid: %zu"
+msgstr "Postawione punkty: %zu"
+
+msgid "LMB: select a cable or a point of it   Gizmo: move the point   Ctrl+LMB: a point into the span   Del: delete"
+msgstr "LPM: zaznacz kabel lub jego punkt   Gizmo: przesuń punkt   Ctrl+LPM: punkt w przęśle   Del: usuń"
+
+msgid "%s  (points: %zu)##cable%zu"
+msgstr "%s  (punkty: %zu)##cable%zu"
+
+msgid "No cables yet: the Lay tool (2) lays them"
+msgstr "Nie ma jeszcze kabli: prowadzi je narzędzie Prowadzenie (2)"
+
+msgid "Lines of the scenery files: %zu; LMB on one shows it, it can be taken over"
+msgstr "Linie z plików scenerii: %zu; LPM na linii ją pokazuje, można ją przejąć"
+
+msgid "Click a cable in the view, or in the list, to change it"
+msgstr "Kliknij kabel w widoku albo na liście, żeby go zmienić"
+
+msgid "The name of the line_strip node; letters, digits, _ and -"
+msgstr "Nazwa węzła line_strip; litery, cyfry, _ i -"
+
+msgid "Spans: %zu, %.1f m"
+msgstr "Przęsła: %zu, %.1f m"
+
+msgid "Lay on from its end"
+msgstr "Prowadź dalej od końca"
+
+msgid "The Lay tool goes on from the last point of this cable: each click adds a point to it"
+msgstr "Prowadzenie kabla zaczyna od ostatniego punktu tego kabla: każde kliknięcie dodaje mu punkt"
+
+msgid "Fly to##cable"
+msgstr "Leć do##cable"
+
+msgid "Delete##cable"
+msgstr "Usuń##cable"
+
+msgid "Points##cable"
+msgstr "Punkty##cable"
+
+msgid "Sag of its own##span"
+msgstr "Własny zwis##span"
+
+msgid "Lines of the scenery"
+msgstr "Linie scenerii"
+
+msgid "File: %s"
+msgstr "Plik: %s"
+
+msgid "Lines drawn on: %zu, points: %zu, width %.2f px"
+msgstr "Ciągłych linii: %zu, punktów: %zu, grubość %.2f px"
+
+msgid "Taken over: the cables of the editor hold them now"
+msgstr "Przejęte: należą teraz do kabli edytora"
+
+msgid "Lines of a scenery file, drawn by the game. Taken over, they become cables of the editor, their points as they are; on save their definition goes from the file to the file of the cables"
+msgstr "Linie z pliku scenerii, rysowane przez grę. Po przejęciu stają się kablami edytora z punktami bez zmian; przy zapisie ich definicja przenosi się z pliku do pliku kabli"
+
+msgid "Take over for editing"
+msgstr "Przejmij do edycji"
+
+msgid "Ctrl+Z gives them back to their file"
+msgstr "Ctrl+Z oddaje je z powrotem do ich pliku"
+
+msgid "Terrain of the scenery (the chunks loaded)"
+msgstr "Teren scenerii (wczytane chunki)"
+
+msgid "Terrain model (NMT, fetched)"
+msgstr "Model terenu (NMT, pobierany)"
+
+msgid "Where the heights of Tracks onto the terrain and Only the selected come from: the chunks of the terrain the scenery has now, read from its files or imported from DEM, as they are; or the terrain model fetched, with the chunks made from it after. The other two ways use the model"
+msgstr "Skąd biorą się wysokości dla „Tory na teren” i „Tylko zaznaczone”: z chunków terenu, który sceneria już ma (wczytanych z plików albo zaimportowanych z DEM), bez zmian; albo z pobieranego modelu terenu, z którego potem powstają chunki. Pozostałe dwa sposoby używają modelu"
+
+msgid "The scenery has no heightmap terrain: make or import some in F5 Terrain"
+msgstr "Sceneria nie ma terenu heightmap: utwórz go albo zaimportuj w F5 Teren"
+
+msgid "Reading the terrain of the scenery under the tracks..."
+msgstr "Odczyt terenu scenerii pod torami..."
+
+msgid "The terrain of the scenery has no chunks under the tracks"
+msgstr "Teren scenerii nie ma chunków pod torami"
+
+msgid "Experimental: the cables of the scenery, power lines and the like, hung between the points of the models"
+msgstr "Eksperymentalne: kable scenerii, linie energetyczne i podobne, zawieszone między punktami modeli"
+
+msgid "LMB picks a cable or a point of it, the gizmo moves the point; Ctrl+LMB puts a point into a span, Del deletes"
+msgstr "LPM wybiera kabel albo jego punkt, gizmo przesuwa punkt; Ctrl+LPM wstawia punkt w przęsło, Del usuwa"
+
+msgid "Lay"
+msgstr "Prowadzenie"
+
+msgid "LMB puts the points a new cable hangs from; Enter ends it"
+msgstr "LPM stawia punkty zawieszenia nowego kabla; Enter go kończy"
+
+msgid "Snap"
+msgstr "Przyciąganie"
+
+msgid "A point goes onto a point of a model (an insulator) or of a cable near the cursor"
+msgstr "Punkt trafia na punkt modelu (izolator) albo kabla przy kursorze"
+
+msgid "The points of all the cables marked; else of the selected one only"
+msgstr "Oznaczone punkty wszystkich kabli; wyłączone: tylko zaznaczonego"
+
+msgid "Scenery lines"
+msgstr "Linie scenerii"
+
+msgid "The lines of the scenery files near the camera marked: they can be picked and taken over"
+msgstr "Oznaczone linie z plików scenerii w pobliżu kamery: można je wybrać i przejąć"

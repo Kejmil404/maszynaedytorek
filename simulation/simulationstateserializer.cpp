@@ -781,6 +781,10 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
             ++Scratchpad.binary.geometry_skipped;
             skip_until( Input, "endline" );
         }
+        // scenery opened for editing: where the lines are defined, for the editor to take them over
+        if( nodedata.layer != null_handle && Input.InLayerFile() ) {
+            scene::Layers.lines( { sourcebegin, Input.TokenEnd() } );
+        }
     }
     else if( nodedata.type == "memcell" ) {
 

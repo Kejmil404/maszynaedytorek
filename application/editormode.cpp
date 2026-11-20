@@ -563,6 +563,7 @@ editor_mode::editor_mode() {
 	ui()->set_workspace_options(editor_ui::workspace::roads, [this]() { render_road_tool_options(); }, [this]() { render_road_selection(); });
 	ui()->set_workspace_options(editor_ui::workspace::terrain, [this]() { render_terrain_tool_options(); });
 	ui()->set_workspace_options(editor_ui::workspace::events, [this]() { render_events_tool_options(); }, [this]() { render_events_selection(); });
+	ui()->set_workspace_options(editor_ui::workspace::cables, [this]() { render_cables_tool_options(); }, [this]() { render_cables_selection(); });
 	ui()->set_workspace_bank(editor_ui::workspace::terrain, [this]() { render_texture_browser(); }, STR("Textures"));
 	// a node picked in the scene window is selected as if clicked in the view; a double click flies the camera to it
 	ui()->set_scene_select([this](scene::basic_node *Node, bool const Focus) {
@@ -1115,6 +1116,13 @@ void editor_mode::undo_one()
         return;
     }
 
+    if (snap.action == EditorSnapshot::Action::Cables)
+    {
+        restore_cables(snap);
+        g_redo.push_back(std::move(snap));
+        return;
+    }
+
     if (snap.action == EditorSnapshot::Action::Kilometrage)
     {
         restore_kilometrage(snap);
@@ -1301,6 +1309,13 @@ void editor_mode::redo_one()
     if (snap.action == EditorSnapshot::Action::Lights)
     {
         restore_lights(snap);
+        m_history.push_back(std::move(snap));
+        return;
+    }
+
+    if (snap.action == EditorSnapshot::Action::Cables)
+    {
+        restore_cables(snap);
         m_history.push_back(std::move(snap));
         return;
     }
@@ -1751,10 +1766,15 @@ bool editor_mode::update()
         workspace = editor_ui::workspace::terrain;
     if (m_events_open)
         workspace = editor_ui::workspace::events;
+    if (m_cables_open)
+        workspace = editor_ui::workspace::cables;
     ui()->set_workspace(workspace);
     draw_events_overlay();
     if (m_events_open)
         events_track_changes();
+    draw_cables_overlay();
+    if (m_cables_open)
+        cables_track_changes();
     autosave_update();
 
     steps.step("roads");
@@ -1849,7 +1869,7 @@ void editor_mode::render_settings()
                 EditorSettings.experimental(experimental);
                 EditorSettings.save();
                 // the field of work of the events goes with them
-                if (false == experimental && m_events_open)
+                if (false == experimental && (m_events_open || m_cables_open))
                     choose_work_area(work_area::surroundings);
             }
             if (ImGui::IsItemHovered())
@@ -3374,6 +3394,7 @@ bool editor_mode::save()
     auto const controls{turntable_controls(rootstatements)};
     auto const ambient{ambient_sounds(rootstatements)};
     auto const lights{light_switches(rootstatements)};
+    auto const cables{cable_lines(rootstatements)};
     auto const noses{nose_controls(rootstatements)};
     std::vector<std::string> trailing;
     auto const placed{m_vehicle.trainset_lines(trailing)};
@@ -3384,6 +3405,10 @@ bool editor_mode::save()
         m_turntable_included = true;
     if (result.success && lights)
         m_events.lights_included = true;
+    if (result.success && cables)
+        m_cables.included = true;
+    if (result.success)
+        cables_saved();
     if (result.success && ambient)
         m_events.included = true;
     if (result.success && noses)
@@ -5319,6 +5344,8 @@ void editor_mode::choose_edit_mode(nodebank_panel::edit_mode const Mode)
 	// an edit mode is the field of work instead of the tracks, roads, terrain or events
 	if (m_events_open)
 		events_workspace(false);
+	if (m_cables_open)
+		cables_workspace(false);
 	m_track_window_open = false;
 	m_roadtool.window = false;
 	terrain_workspace(false);
@@ -5331,6 +5358,8 @@ editor_mode::work_area editor_mode::current_work_area() const
 {
 	if (m_events_open)
 		return work_area::events;
+	if (m_cables_open)
+		return work_area::cables;
 	// the terrain is shown over the tracks, see the tool options window
 	if (m_terrain_open)
 		return work_area::terrain;
@@ -5344,10 +5373,12 @@ editor_mode::work_area editor_mode::current_work_area() const
 void editor_mode::choose_work_area(work_area const Area)
 {
 	// the events are a field of work of their own, with the experimental functions only
-	if (Area == work_area::events && false == EditorSettings.experimental())
+	if ((Area == work_area::events || Area == work_area::cables) && false == EditorSettings.experimental())
 		return;
 	if (Area != work_area::events && m_events_open)
 		events_workspace(false);
+	if (Area != work_area::cables && m_cables_open)
+		cables_workspace(false);
 	switch (Area)
 	{
 	case work_area::surroundings:
@@ -5374,6 +5405,12 @@ void editor_mode::choose_work_area(work_area const Area)
 		terrain_workspace(false);
 		events_workspace(true);
 		break;
+	case work_area::cables:
+		m_track_window_open = false;
+		m_roadtool.window = false;
+		terrain_workspace(false);
+		cables_workspace(true);
+		break;
 	}
 }
 
@@ -5393,8 +5430,11 @@ void editor_mode::render_workspaces()
 	    {STR_C("Terrain"), work_area::terrain, editor_icons::icon::work_terrain, STR_C("Heightmap terrain: chunks, sculpting, painting, water, orthophoto")},
 	};
 	if (EditorSettings.experimental())
+	{
 		areas.push_back({STR_C("Events"), work_area::events, editor_icons::icon::work_events, STR_C("Experimental: the ambient sounds of the scenery, each a sound node with its events and event launcher")});
-	std::array const keys{"F2", "F3", "F4", "F5", "F6"};
+		areas.push_back({STR_C("Cables"), work_area::cables, editor_icons::icon::work_cables, STR_C("Experimental: the cables of the scenery, power lines and the like, hung between the points of the models")});
+	}
+	std::array const keys{"F2", "F3", "F4", "F5", "F6", "F7"};
 	auto const current{current_work_area()};
 	auto const &style{ImGui::GetStyle()};
 	auto *list{ImGui::GetWindowDrawList()};
@@ -6714,6 +6754,12 @@ void editor_mode::render_gizmo()
         render_events_gizmo();
         return;
     }
+    // the cables: the gizmo is on the point selected
+    if (m_cables_open)
+    {
+        render_cables_gizmo();
+        return;
+    }
 
     if (ui()->mode() == nodebank_panel::TRACK && m_track_tab == track_tab::path && m_track_set.size() >= 2)
     {
@@ -6906,6 +6952,22 @@ glm::dvec2 edge_correction(glm::dvec2 const &Low, glm::dvec2 const &High, glm::d
 	return best;
 }
 } // namespace
+
+std::vector<glm::dvec3> editor_mode::model_points(TAnimModel const &Model)
+{
+	std::vector<glm::dvec3> points;
+	if (Model.Model() == nullptr)
+		return points;
+	std::vector<world_triangle> triangles;
+	gather_submodel_triangles(Model.Model()->Root, instance_matrix(Model), triangles);
+	for (auto const &triangle : triangles)
+		points.insert(points.end(), triangle.begin(), triangle.end());
+	// each corner once: the triangles share them
+	std::ranges::sort(points, [](glm::dvec3 const &Left, glm::dvec3 const &Right) { return std::tie(Left.x, Left.y, Left.z) < std::tie(Right.x, Right.y, Right.z); });
+	auto const repeated{std::ranges::unique(points, [](glm::dvec3 const &Left, glm::dvec3 const &Right) { return glm::distance(Left, Right) < 1e-4; })};
+	points.erase(repeated.begin(), repeated.end());
+	return points;
+}
 
 editor_mode::snap_neighbour editor_mode::snap_box(TAnimModel const &Model)
 {
@@ -7707,6 +7769,7 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         case GLFW_KEY_F4: choose_work_area(work_area::roads); break;
         case GLFW_KEY_F5: choose_work_area(work_area::terrain); break;
         case GLFW_KEY_F6: choose_work_area(work_area::events); break;
+        case GLFW_KEY_F7: choose_work_area(work_area::cables); break;
         // the edit modes in the order of the toolbar; in the track mode the digits typed as a value were taken already; in the
         // events the two tools of the sounds
         case GLFW_KEY_1:
@@ -7716,13 +7779,20 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
                 events_choose_tool(Key == GLFW_KEY_2);
                 break;
             }
+            if (m_cables_open)
+            {
+                if (Key == GLFW_KEY_1)
+                    cables_finish();
+                m_cables.laying = Key == GLFW_KEY_2;
+                break;
+            }
             handled = ui()->mode() != nodebank_panel::TRACK;
             if (handled)
                 choose_edit_mode(Key == GLFW_KEY_1 ? nodebank_panel::MODIFY : nodebank_panel::ADD);
             break;
-        case GLFW_KEY_3: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open; if (handled) choose_edit_mode(nodebank_panel::BRUSH); break;
-        case GLFW_KEY_4: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open; if (handled) choose_edit_mode(nodebank_panel::FILL); break;
-        case GLFW_KEY_5: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open; if (handled) choose_edit_mode(nodebank_panel::COPY); break;
+        case GLFW_KEY_3: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open && false == m_cables_open; if (handled) choose_edit_mode(nodebank_panel::BRUSH); break;
+        case GLFW_KEY_4: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open && false == m_cables_open; if (handled) choose_edit_mode(nodebank_panel::FILL); break;
+        case GLFW_KEY_5: handled = ui()->mode() != nodebank_panel::TRACK && false == m_events_open && false == m_cables_open; if (handled) choose_edit_mode(nodebank_panel::COPY); break;
         default: handled = false; break;
         }
         if (handled)
@@ -7858,6 +7928,11 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
             if (false == ImGui::GetIO().WantTextInput)
                 events_delete();
         }
+        else if (is_press(Action) && m_cables_open)
+        {
+            if (false == ImGui::GetIO().WantTextInput)
+                cables_delete();
+        }
         else if (is_press(Action) && m_terrain_open && false == m_terrain_selection.empty())
             remove_selected_chunks();
         else if (is_press(Action))
@@ -7878,6 +7953,20 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         if (is_press(Action) && m_area_drawing.active)
         {
             area_finish(false);
+            break;
+        }
+        // the cables: the cable being laid dropped, then the Lay tool given up, then what's selected deselected
+        if (is_press(Action) && m_cables_open)
+        {
+            if (false == m_cables.laid.empty() && m_cables.extending < 0)
+                cables_cancel();
+            else if (m_cables.laying)
+            {
+                cables_finish();
+                m_cables.laying = false;
+            }
+            else
+                cables_deselect();
             break;
         }
         // the events: the sound being put given up, then the selected one deselected
@@ -7973,6 +8062,12 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
 
     case GLFW_KEY_ENTER:
     case GLFW_KEY_KP_ENTER:
+        // the cable laid ends
+        if (is_press(Action) && m_cables_open && m_cables.laying && false == ImGui::GetIO().WantTextInput)
+        {
+            cables_finish();
+            break;
+        }
         // the download area closed, from three points on
         if (is_press(Action) && m_area_drawing.active)
         {
@@ -8093,6 +8188,14 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
     {
         if (is_press(Action))
             events_click();
+        m_input.mouse.button(Button, Action);
+        return;
+    }
+    // the cables: the left button lays, picks or moves them, and nothing else
+    if (m_cables_open && Button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        if (is_press(Action))
+            cables_click();
         m_input.mouse.button(Button, Action);
         return;
     }
@@ -8431,7 +8534,8 @@ void editor_mode::render_change_history(){
                         s.action == EditorSnapshot::Action::Terrain ? "TER" :
                         s.action == EditorSnapshot::Action::Kilometrage ? "KM" :
                         s.action == EditorSnapshot::Action::Sounds ? "SND" :
-                        s.action == EditorSnapshot::Action::Lights ? "LGT" : "OTH",
+                        s.action == EditorSnapshot::Action::Lights ? "LGT" :
+                        s.action == EditorSnapshot::Action::Cables ? "CBL" : "OTH",
                         s.node_name.empty() ? STR_C("(no name)") : s.node_name.c_str(),
                         s.position.x, s.position.y, s.position.z);
 

@@ -1901,6 +1901,8 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 	m_lit.clear();
 	// the shapes of the rewritten files are somewhere else in them now
 	m_shapes.erase(std::remove_if(std::begin(m_shapes), std::end(m_shapes), [&](shape_source const &Shape) { return std::find(std::begin(composed), std::end(composed), Shape.layer) != std::end(composed); }), std::end(m_shapes));
+	// so are the lines: those of the rewritten files are taken over again only after the scenery is loaded again
+	std::erase_if(m_lines, [&composed](lines_source const &Lines) { return std::ranges::find(composed, Lines.layer) != std::end(composed); });
 	for (auto *path : savedpaths)
 	{
 		path->m_dirty = false;

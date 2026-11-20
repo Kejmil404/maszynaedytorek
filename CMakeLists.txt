@@ -262,6 +262,7 @@ set(SOURCES
 "application/editormodeevents.cpp"
 "application/editormodeautosave.cpp"
 "application/editormodelights.cpp"
+"application/editormodecables.cpp"
 "application/editormodeselftest.cpp"
 "application/editormodeselftestscene.cpp"
 "application/editormodeselftestsleepers.cpp"

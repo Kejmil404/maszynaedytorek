@@ -442,11 +442,27 @@ def eraser(d):
     line(d, [(8, 56), (30, 56)])
 
 
+def work_cables(d):
+    # a pylon with its cross arm, and the wires sagging from it
+    line(d, [(18, 60), (24, 10), (30, 60)], W - 4)
+    line(d, [(10, 18), (38, 18)], W - 6)
+    arc(d, 51, 8, 16, 95, 180, W - 8)
+    arc(d, 51, 22, 16, 100, 180, W - 8)
+
+
+def cable(d):
+    # a wire sagging between the ends it's hung from
+    circle(d, 10, 18, 7)
+    circle(d, 54, 18, 7)
+    arc(d, 32, -6, 34, 45, 135, W - 4)
+
+
 ICONS = [select, insert, brush, area_fill, copy_to_bank, translate, rotate, scale,
          local_space, ortho, perspective, sculpt, smooth, chunks, orthophoto, road,
          place, lanes, lay_track, switch, straight, curve, signal, objects,
          vehicle, profile, speed, joints, infra, gauge, turntable, parallel, station, kilometrage, more, work_surroundings,
-         work_tracks, work_roads, work_terrain, station_signals, line_block, magnet, work_events, sound, eraser]
+         work_tracks, work_roads, work_terrain, station_signals, line_block, magnet, work_events, sound, eraser,
+         work_cables, cable]
 
 
 def cutouts(name, d):

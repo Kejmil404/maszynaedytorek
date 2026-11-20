@@ -19,7 +19,8 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 **Teren**
 - Wczytywanie modelu terenu z plików (.asc, .xyz, .tif): okno wyboru plików, wiele plików albo cały folder jako jedna mozaika, wygładzanie krawędzi i dopasowanie do istniejącego terenu.
 - Gumka do malowania terenu i chronione materiały (filtr pędzla).
-- „Tory na teren” tylko dla zaznaczonych torów.
+- „Tory na teren” tylko dla zaznaczonych torów, z wyborem źródła wysokości: teren scenerii (wczytane chunki, też z DEM) albo pobierany NMT.
+- Okno wyboru plików na Linuksie także bez zenity: kdialog, yad, qarma albo okno GTK przez python3.
 
 **Otoczenie**
 - Zaznaczanie ramką (Shift+przeciągnij), z osobnym zasięgiem.
@@ -45,6 +46,7 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 - Narzędzia Zaznaczanie (1) i Wstawianie (2) w trybie Eventy, jak w Otoczeniu; odsłuch i zasięgi dźwięków na pasku.
 - Światła modeli w Inspektorze: tryb każdego światła (zgaszone, zapalone, miga, pulsuje, po zmroku), kolor i płynna zmiana, z podglądem.
 - Przełączniki świateł: event `lights` z launcherem (o godzinie, zapal/zgaś o dwóch godzinach, na klawisz, przy zbliżeniu), kilka modeli naraz, warunek na komórce pamięci, „Wypróbuj”.
+- Zakładka Kable (F7): prowadzenie kabli (`line_strip`) ze zwisem przęseł, przyciąganie do punktów modeli i innych kabli, edycja punktów gizmem, przejmowanie do edycji linii z plików scenerii.
 
 
 ## Table of Contents

@@ -131,6 +131,46 @@ struct editor_mode_light_switch
 	bool operator==(editor_mode_light_switch const &) const = default;
 };
 
+// a cable of the editor (Cables, experimental): a line_strip hung between its points, sagging in each span between them, written
+// by the editor to an include of its own, <scenery>_kable.scm
+struct editor_mode_cable
+{
+	std::string name;
+	std::vector<glm::dvec3> points;
+	std::vector<float> sags; // m, of each span; below 0: the sag of the cable
+	float sag{0.8f}; // m, at the middle of a span
+	int segments{8}; // straight pieces a sagging span is drawn with
+	std::array<int, 3> colour{60, 60, 60};
+	float width{1.5f}; // px, as the game draws the lines
+	float range{1000.0f}; // m, seen up to
+	float range_min{0.0f};
+	bool operator==(editor_mode_cable const &) const = default;
+};
+
+// lines of a scenery file, as the editor read them from it: drawn by the game, taken over by the editor on request
+struct editor_mode_scenery_cable
+{
+	std::uint32_t id{0};
+	std::string name;
+	std::string file;
+	std::vector<std::vector<glm::dvec3>> chains; // the points of each line drawn on, in the world
+	std::array<int, 3> colour{0, 0, 0};
+	float width{1.0f};
+	float range{1000.0f};
+	float range_min{0.0f};
+	glm::dvec3 centre{0.0};
+	double radius{0.0};
+	bool taken{false};
+};
+
+// the cables of the editor, with the lines of the scenery files taken over by them, as a step of the history holds them
+struct editor_mode_cables
+{
+	std::vector<editor_mode_cable> cables;
+	std::vector<std::uint32_t> taken; // the lines of the scenery files which go from them on save
+	bool operator==(editor_mode_cables const &) const = default;
+};
+
 // the lights of a model as the editor changes them: its states, its colours and whether they change smoothly
 struct editor_mode_model_lights
 {
@@ -202,7 +242,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	struct stored_profile;
 	struct EditorSnapshot
 	{
-		enum class Action { Move, Rotate, Scale, Add, Delete, TrackEdit, Other, RoadEdit, Array, Bend, Terrain, Kilometrage, Sounds, Lights };
+		enum class Action { Move, Rotate, Scale, Add, Delete, TrackEdit, Other, RoadEdit, Array, Bend, Terrain, Kilometrage, Sounds, Lights, Cables };
 		// copy of a model an array made
 		struct array_copy
 		{
@@ -245,6 +285,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::optional<std::vector<editor_mode_ambient>> sounds; // the ambient sounds before the change (Action::Sounds)
 		std::optional<std::vector<editor_mode_light_switch>> switches; // the switches of the lights before the change (Action::Sounds)
 		std::optional<editor_mode_model_lights> lights; // the lights of a model before the change (Action::Lights)
+		std::optional<editor_mode_cables> cables; // the cables before the change (Action::Cables)
 		std::vector<array_copy> copies; // models an array added to the one it was made of
 		bool joined{false}; // undone and redone together with the change before it
 		std::shared_ptr<terrain_streamer::change const> terrain; // the heightmap terrain from before the change (Action::Terrain)
@@ -484,6 +525,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		// by nmt_auto_selected, taken by nmt_auto_start, so any other run is one for all the tracks
 		std::unordered_set<TTrack const *> only;
 		std::unordered_set<TTrack const *> only_next;
+		// the heights the tracks go onto: of the chunks of the terrain of the scenery, loaded or imported from files, as they are,
+		// or of the terrain model fetched (and the chunks made from it after). -1 till chosen: the terrain of the scenery when it has some
+		int source{-1};
+		bool scenery_terrain{false}; // of the run going on
 		std::unordered_set<TTrack const *> stayed; // the tracks this putting onto the terrain leaves as they are
 		double grow_time{-10.0};
 		double slope{1.5};
@@ -694,6 +739,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the same, else the height of the model with the offset of the scenery where its square is in: the ground where there's no
 	// terrain made yet, as under the base map of the top view
 	bool nmt_ground(double const X, double const Z, double &Height) const;
+	// the height a track goes onto in the putting of the tracks onto the terrain: of the terrain model, or of the chunks of the scenery
+	bool nmt_fit_height(double const X, double const Z, double &Height);
 	// the squares of the model under the rectangle are in, none of them waiting to be asked for again
 	bool nmt_ready(glm::dvec2 const &Min, glm::dvec2 const &Max);
 	// Only: the paths of these tracks are shaped anew, the modifiers of those removed taken away; null: all of them. the number
@@ -1208,11 +1255,74 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		tracks,
 		roads,
 		terrain,
-		events // with the experimental functions only
+		events, // with the experimental functions only
+		cables // with the experimental functions only
 	};
 	// the field of work of the events (experimental). for now the ambient sounds: a sound node, its events and its event launcher
 	// each, written by the editor on each save to its own include, <scenery>_dzwieki.scm, which any build reads
 	bool m_events_open{false};
+	// the field of work of the cables (experimental): the lines of the scenery, laid and changed with the tools of its own
+	bool m_cables_open{false};
+	using cable = editor_mode_cable;
+	using scenery_cable = editor_mode_scenery_cable;
+	struct cables_state
+	{
+		bool loaded{false};
+		bool included{false};
+		std::vector<cable> cables;
+		std::vector<std::uint32_t> taken;
+		int selected{-1};
+		int point{-1}; // of the cable selected
+		bool laying{false}; // the tool chosen is Lay: a click adds a point of the cable laid
+		std::vector<glm::dvec3> laid; // the points of the cable being laid
+		int extending{-1}; // the cable the points laid go on at the end of, -1: a new one
+		cable model; // what a new cable gets
+		float height{0.0f}; // m over the ground of a point put on the ground
+		bool points{true}; // the points of the cables marked in the view
+		bool scenery_shown{false}; // the lines of the scenery files marked in the view
+		// where the next point goes, as the cursor is: 0 the ground, 1 a point of a model, 2 a point of a cable
+		std::optional<glm::dvec3> snap;
+		int snap_kind{0};
+		TAnimModel const *hover{nullptr}; // the model under the cursor, its points
+		std::vector<glm::dvec3> hover_points;
+		int pick_wait{0};
+		glm::vec2 pick_mouse{-1.0f, -1.0f};
+		bool scanned{false};
+		std::vector<scenery_cable> scenery;
+		int scenery_selected{-1};
+		std::array<char, 64> rename{};
+		int renaming{-1};
+		editor_mode_cables last;
+		std::optional<editor_mode_cables> base;
+		std::string status;
+	};
+	cables_state m_cables;
+	// the field of work of the cables (application/editormodecables.cpp)
+	void cables_workspace(bool const Open);
+	void cables_load();
+	void cables_scan();
+	bool cable_lines(std::vector<std::string> &Rootstatements);
+	void render_cables_tool_options();
+	void render_cables_selection();
+	void render_cable(cable &Cable);
+	void render_cable_points(cable &Cable);
+	void render_scenery_cable(scenery_cable &Lines);
+	void render_cable_model(cable &Model);
+	bool cables_click();
+	void cables_finish();
+	void cables_cancel();
+	void cables_delete();
+	void cables_deselect();
+	void cables_take_over(scenery_cable &Lines);
+	void cables_snap();
+	void cables_track_changes();
+	void restore_cables(EditorSnapshot &Snapshot);
+	// after a save: the lines taken over are gone from their files, the steps of the history which would give them back go too
+	void cables_saved();
+	void render_cables_gizmo();
+	void draw_cables_overlay();
+	// the points of the model, in the world: the corners of its triangles, each once
+	static std::vector<glm::dvec3> model_points(TAnimModel const &Model);
 	using ambient_sound = editor_mode_ambient;
 	using light_switch = editor_mode_light_switch;
 	struct events_state

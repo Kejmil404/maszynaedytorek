@@ -508,6 +508,8 @@ void editor_mode::show_track_tab(track_tab const Wanted)
 	m_roadtool.window = false;
 	if (m_events_open)
 		events_workspace(false);
+	if (m_cables_open)
+		cables_workspace(false);
 	if (Tab == m_track_tab)
 		return;
 	m_track_mode_notice.clear();
