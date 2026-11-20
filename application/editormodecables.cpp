@@ -354,43 +354,56 @@ bool numeric(std::string const &Word, double &Value)
 	return end != Word.c_str() && *end == '\0';
 }
 
-// the block: a line with the name of a template, then the numbers of the parameters of the place and the turns; a line of three
-// numbers for each point; Obrot=... at the end
+// the blocks: each a line with the name of a template, then the numbers of the parameters of the place and the turns; a line of three
+// numbers for each point, empty lines between them left out; Obrot=... at the end, or not
 editor_mode_wiring_block read_block(std::string const &Text)
 {
 	editor_mode_wiring_block block;
 	std::istringstream input{Text};
-	bool inside{false};
+	std::string label;
+	editor_mode_wiring_set *set{nullptr};
 	for (std::string raw; std::getline(input, raw);)
 	{
-		auto const line{uncommented(raw)};
-		auto const words{line_words(line)};
-		if (false == inside)
+		std::string_view const plain{uncommented(raw)};
+		auto const commented{uncommented(raw).size() != std::string_view{raw}.size() && std::string_view{raw}.find("//") != std::string_view::npos};
+		auto const words{line_words(plain)};
+		if (words.empty())
+			continue;
+		// a header: the start of a set
+		if (words.size() >= 4 && ToLower(words[0]).ends_with(".inc"))
 		{
-			// the name of a template, then the numbers of the parameters
-			if (words.size() < 4 || false == ToLower(words[0]).ends_with(".inc"))
-				continue;
 			std::vector<int> parameters;
 			for (std::size_t index = 1; index < words.size(); ++index)
 				if (double value; numeric(words[index], value) && value >= 1.0)
 					parameters.push_back(static_cast<int>(value));
-			if (parameters.size() < 3)
+			if (parameters.size() >= 3)
+			{
+				if (block.parameters.empty())
+					block.parameters = std::move(parameters);
+				block.sets.push_back({label, {}});
+				set = &block.sets.back();
 				continue;
-			block.parameters = std::move(parameters);
-			inside = true;
+			}
+		}
+		if (ToLower(std::string{plain}).starts_with("obrot"))
+		{
+			block.turned = ToLower(std::string{plain}).find('y') != std::string::npos;
+			set = nullptr;
 			continue;
 		}
-		if (ToLower(std::string{line}).starts_with("obrot"))
-		{
-			block.turned = ToLower(std::string{line}).find('y') != std::string::npos;
-			break;
-		}
 		std::array<double, 3> point{};
-		if (words.size() < 3 || false == numeric(words[0], point[0]) || false == numeric(words[1], point[1]) || false == numeric(words[2], point[2]))
-			break;
-		block.points.emplace_back(point[0], point[1], point[2]);
+		if (set != nullptr && false == commented && words.size() >= 3 && numeric(words[0], point[0]) && numeric(words[1], point[1]) && numeric(words[2], point[2]))
+		{
+			set->points.emplace_back(point[0], point[1], point[2]);
+			continue;
+		}
+		// anything else ends the set; a comment names the next one
+		set = nullptr;
+		if (commented)
+			label = std::string{plain};
 	}
-	block.found = false == block.points.empty();
+	std::erase_if(block.sets, [](editor_mode_wiring_set const &Set) { return Set.points.empty(); });
+	block.found = false == block.sets.empty();
 	return block;
 }
 
@@ -400,12 +413,13 @@ glm::dvec3 axes_of(glm::dvec3 const &Point, int const Axes)
 {
 	auto const flip_x{(Axes & 1) != 0 ? -1.0 : 1.0};
 	auto const flip_z{(Axes & 2) != 0 ? -1.0 : 1.0};
-	if (Axes < 4)
+	if ((Axes & 4) == 0)
 		return {Point.x * flip_x, Point.z, Point.y * flip_z};
 	return {Point.x * flip_x, Point.y, Point.z * flip_z};
 }
 
-int constexpr kAxesWays{8};
+// with the turn of the pole either way
+int constexpr kAxesWays{16};
 
 // a number of the include, by the number of its parameter
 double parameter_value(std::vector<std::string> const &Values, std::vector<int> const &Parameters, std::size_t const Which)
@@ -1125,12 +1139,13 @@ void editor_mode::draw_cables_overlay()
 			auto const &pole{state.poles[index]};
 			if (ImVec2 screen; projection.project(pole.origin, screen))
 			{
-				drawlist->AddCircleFilled(screen, 7.0f, pole.points.empty() ? IM_COL32(255, 120, 60, 230) : IM_COL32(80, 220, 120, 230), 12);
+				drawlist->AddCircleFilled(screen, 7.0f, pole.sets.empty() ? IM_COL32(255, 120, 60, 230) : IM_COL32(80, 220, 120, 230), 12);
 				drawlist->AddText(ImVec2(screen.x + 9.0f, screen.y - 8.0f), IM_COL32(255, 255, 255, 230), std::to_string(index + 1).c_str());
 			}
-			for (auto const &point : pole.points)
-				if (ImVec2 screen; projection.project(point, screen))
-					drawlist->AddCircle(screen, 4.0f, IM_COL32(80, 255, 120, 255), 8, 1.5f);
+			for (auto const &set : pole.sets)
+				for (auto const &point : set)
+					if (ImVec2 screen; projection.project(point, screen))
+						drawlist->AddCircle(screen, 4.0f, IM_COL32(80, 255, 120, 255), 8, 1.5f);
 		}
 		for (auto const &wire : wiring_cables())
 		{
@@ -1193,35 +1208,47 @@ bool editor_mode::wiring_pole(TAnimModel const &Model, editor_mode_wiring_pole &
 	if (false == block.found)
 		return false;
 	auto const yaw{glm::radians((block.turned ? parameter_value(values, block.parameters, 3) : 0.0) + static_cast<double>(include.context.rotation.y))};
-	auto const place = [&Pole, yaw](glm::dvec3 const &Point) { return Pole.origin + glm::rotateY(Point, yaw); };
-	// the way the numbers stand for the axes, worked out once a template: the one whose points lie nearest to the model of the pole
+	auto const place = [&Pole, yaw](glm::dvec3 const &Point, int const Axes) { return Pole.origin + glm::rotateY(axes_of(Point, Axes), (Axes & 8) != 0 ? -yaw : yaw); };
+	// the way the numbers stand for the axes and the turn goes, worked out once a template: the one whose points lie nearest to the
+	// model of the pole
 	if (block.axes < 0)
 	{
 		auto const corners{model_points(Model)};
 		auto best{std::numeric_limits<double>::max()};
+		std::size_t count{0};
 		block.axes = 0;
 		for (int axes = 0; axes < kAxesWays && false == corners.empty(); ++axes)
 		{
 			double sum{0.0};
-			for (auto const &point : block.points)
-			{
-				auto const at{place(axes_of(point, axes))};
-				auto nearest{std::numeric_limits<double>::max()};
-				for (auto const &corner : corners)
-					nearest = std::min(nearest, glm::distance(at, corner));
-				sum += nearest;
-			}
+			count = 0;
+			for (auto const &set : block.sets)
+				for (auto const &point : set.points)
+				{
+					auto const at{place(point, axes)};
+					auto nearest{std::numeric_limits<double>::max()};
+					for (auto const &corner : corners)
+						nearest = std::min(nearest, glm::distance(at, corner));
+					sum += nearest;
+					++count;
+				}
 			if (sum < best)
 			{
 				best = sum;
 				block.axes = axes;
 			}
 		}
-		if (false == corners.empty() && best / static_cast<double>(block.points.size()) > 1.0)
-			state.status = format(STR_C("The points of %s lie %.1f m from its model on average: check the block of its template"), Pole.file.c_str(), best / static_cast<double>(block.points.size()));
+		if (count > 0 && best / static_cast<double>(count) > 1.0)
+			state.status = format(STR_C("The points of %s lie %.1f m from its model on average: check the block of its template"), Pole.file.c_str(), best / static_cast<double>(count));
 	}
-	for (auto const &point : block.points)
-		Pole.points.push_back(place(axes_of(point, block.axes)));
+	for (auto const &set : block.sets)
+	{
+		std::vector<glm::dvec3> points;
+		for (auto const &point : set.points)
+			points.push_back(place(point, block.axes));
+		Pole.main = std::max(Pole.main, points.size());
+		Pole.sets.push_back(std::move(points));
+		Pole.labels.push_back(set.label);
+	}
 	return true;
 }
 
@@ -1239,7 +1266,7 @@ void editor_mode::wiring_pick(TAnimModel const *Model)
 		state.status = STR("This model isn't of an include of a template: the wires are led along the poles placed with their templates");
 		return;
 	}
-	if (pole.points.empty())
+	if (pole.sets.empty())
 		state.status = format(STR_C("The template %s has no block for the automatons of the wires: the wires are led along poles which all have it"), pole.file.c_str());
 	state.poles.push_back(std::move(pole));
 }
@@ -1264,64 +1291,108 @@ void editor_mode::wiring_order()
 	}
 }
 
-// the wires along the poles: the points of each pole in the same order across the line, from one side of it to the other and
-// from the bottom up, so the wires of a pole turned the other way don't cross; a sag picked at random for each span
+namespace
+{
+
+// the set of the pole a span hangs from: of those of its kind, the one nearest to the pole at the other end of the span, as a strain
+// pole has one set facing each way
+std::vector<glm::dvec3> const *set_towards(editor_mode_wiring_pole const &Pole, glm::dvec3 const &Towards, bool const Main)
+{
+	std::vector<glm::dvec3> const *chosen{nullptr};
+	auto best{std::numeric_limits<double>::max()};
+	for (auto const &set : Pole.sets)
+	{
+		if ((set.size() == Pole.main) != Main)
+			continue;
+		glm::dvec3 middle{0.0};
+		for (auto const &point : set)
+			middle += point;
+		middle /= static_cast<double>(set.size());
+		if (auto const distance{glm::distance(glm::dvec2{middle.x, middle.z}, glm::dvec2{Towards.x, Towards.z})}; distance < best)
+		{
+			best = distance;
+			chosen = &set;
+		}
+	}
+	return chosen;
+}
+
+// the points across the span, from its left to its right and from the bottom up: the same order at both ends, so the wires don't
+// cross, whichever way the poles stand
+std::vector<glm::dvec3> across(std::vector<glm::dvec3> Points, glm::dvec3 const &From, glm::dvec3 const &To)
+{
+	glm::dvec2 along{To.x - From.x, To.z - From.z};
+	along /= std::max(1e-6, glm::length(along));
+	glm::dvec2 const right{along.y, -along.x};
+	glm::dvec2 const base{From.x, From.z};
+	std::ranges::sort(Points, [&right, &base](glm::dvec3 const &Left, glm::dvec3 const &Right) {
+		auto const left_side{std::round(glm::dot(glm::dvec2{Left.x, Left.z} - base, right) * 4.0)};
+		auto const right_side{std::round(glm::dot(glm::dvec2{Right.x, Right.z} - base, right) * 4.0)};
+		return left_side != right_side ? left_side < right_side : Left.y < Right.y;
+	});
+	return Points;
+}
+
+} // namespace
+
+// the wires along the poles: each span hangs from the set of each pole facing the other one, the points of the two in the same order
+// across the span; a strain pole joins the set the wires come in at with the one they go out at, as its jumpers do. A sag is picked
+// at random for each span, the same for its wires; the sets of fewer points, as the earth wire, are led apart, sagging less
 std::vector<editor_mode::cable> editor_mode::wiring_cables() const
 {
 	auto const &state{m_cables};
 	std::vector<cable> wires;
 	auto const &poles{state.poles};
-	std::size_t count{std::numeric_limits<std::size_t>::max()};
-	for (auto const &pole : poles)
-		count = std::min(count, pole.points.size());
-	if (poles.size() < 2 || count == 0)
+	if (poles.size() < 2 || std::ranges::any_of(poles, [](editor_mode_wiring_pole const &Pole) { return Pole.sets.empty(); }))
 		return wires;
-	// the points of each pole in order
-	std::vector<std::vector<glm::dvec3>> ordered;
-	for (std::size_t index = 0; index < poles.size(); ++index)
+	for (auto const main : {true, false})
 	{
-		auto const &before{poles[index == 0 ? 0 : index - 1].origin};
-		auto const &after{poles[index + 1 < poles.size() ? index + 1 : index].origin};
-		glm::dvec2 along{after.x - before.x, after.z - before.z};
-		along /= std::max(1e-6, glm::length(along));
-		glm::dvec2 const right{along.y, -along.x};
-		auto points{poles[index].points};
-		auto const origin{poles[index].origin};
-		std::ranges::sort(points, [&right, &origin](glm::dvec3 const &Left, glm::dvec3 const &Right) {
-			auto const left_side{std::round(glm::dot(glm::dvec2{Left.x - origin.x, Left.z - origin.z}, right) * 2.0)};
-			auto const right_side{std::round(glm::dot(glm::dvec2{Right.x - origin.x, Right.z - origin.z}, right) * 2.0)};
-			return left_side != right_side ? left_side < right_side : Left.y < Right.y;
-		});
-		points.resize(count);
-		ordered.push_back(std::move(points));
-	}
-	// the wire at the top of the first pole, over the others by half a metre at least: the earth wire
-	std::size_t top{count};
-	if (state.earth && count > 1)
-	{
-		auto const highest{std::ranges::max_element(ordered.front(), [](glm::dvec3 const &Left, glm::dvec3 const &Right) { return Left.y < Right.y; })};
-		auto const height{highest->y};
-		if (std::ranges::all_of(ordered.front(), [height, &highest](glm::dvec3 const &Point) { return &Point == &*highest || Point.y < height - 0.5; }))
-			top = static_cast<std::size_t>(highest - ordered.front().begin());
-	}
-	for (std::size_t wire = 0; wire < count; ++wire)
-	{
-		cable made{state.model};
-		for (auto const &points : ordered)
-			made.points.push_back(points[wire]);
-		double sum{0.0};
+		if (false == main && false == state.earth)
+			continue;
+		// the ends of each span: the set at the pole before, and the one at the pole after
+		std::vector<std::pair<std::vector<glm::dvec3>, std::vector<glm::dvec3>>> spans;
+		std::size_t count{std::numeric_limits<std::size_t>::max()};
 		for (std::size_t span = 0; span + 1 < poles.size(); ++span)
 		{
-			// the same span sags the same for all its wires, as it's hung
-			auto const random{random_of((static_cast<std::uint64_t>(state.seed) << 32) ^ (span * 0x632be59bd9b4e019ULL) ^ static_cast<std::uint64_t>(std::llround(std::abs(poles[span].origin.x * 10.0 + poles[span].origin.z))))};
-			auto sag{static_cast<double>(state.sag_min) + random * static_cast<double>(std::max(0.0f, state.sag_max - state.sag_min))};
-			if (wire == top)
-				sag *= state.earth_share;
-			made.sags.push_back(static_cast<float>(sag));
-			sum += sag;
+			auto const &from{poles[span]};
+			auto const &to{poles[span + 1]};
+			auto const *start{set_towards(from, to.origin, main)};
+			auto const *end{set_towards(to, from.origin, main)};
+			if (start == nullptr || end == nullptr)
+			{
+				count = 0;
+				break;
+			}
+			spans.emplace_back(across(*start, from.origin, to.origin), across(*end, from.origin, to.origin));
+			count = std::min({count, start->size(), end->size()});
 		}
-		made.sag = static_cast<float>(sum / static_cast<double>(poles.size() - 1));
-		wires.push_back(std::move(made));
+		for (std::size_t wire = 0; wire < count; ++wire)
+		{
+			cable made{state.model};
+			double sum{0.0};
+			for (std::size_t span = 0; span < spans.size(); ++span)
+			{
+				auto const &start{spans[span].first[wire]};
+				// over a strain pole the jumper, from the set the wires came in at to the one they go out at, hangs a little
+				if (made.points.empty())
+					made.points.push_back(start);
+				else if (glm::distance(made.points.back(), start) > 0.05)
+				{
+					made.points.push_back(start);
+					made.sags.push_back(std::min(0.3f, static_cast<float>(glm::distance(made.points[made.points.size() - 2], start)) * 0.1f));
+				}
+				// the same span sags the same for all its wires, as it's hung
+				auto const random{random_of((static_cast<std::uint64_t>(state.seed) << 32) ^ (span * 0x632be59bd9b4e019ULL) ^ static_cast<std::uint64_t>(std::llround(std::abs(poles[span].origin.x * 10.0 + poles[span].origin.z))))};
+				auto sag{static_cast<double>(state.sag_min) + random * static_cast<double>(std::max(0.0f, state.sag_max - state.sag_min))};
+				if (false == main)
+					sag *= state.earth_share;
+				made.points.push_back(spans[span].second[wire]);
+				made.sags.push_back(static_cast<float>(sag));
+				sum += sag;
+			}
+			made.sag = static_cast<float>(sum / static_cast<double>(spans.size()));
+			wires.push_back(std::move(made));
+		}
 	}
 	return wires;
 }
@@ -1373,10 +1444,18 @@ void editor_mode::render_wiring_options()
 	for (std::size_t index = 0; index < state.poles.size(); ++index)
 	{
 		auto const &pole{state.poles[index]};
-		auto const described{false == pole.points.empty()};
-		ImGui::TextColored(described ? ImVec4(0.6f, 0.9f, 0.6f, 1.0f) : ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "%zu. %s  (%zu)", index + 1, pole.file.c_str(), pole.points.size());
+		auto const described{false == pole.sets.empty()};
+		auto const others{static_cast<std::size_t>(std::ranges::count_if(pole.sets, [&pole](std::vector<glm::dvec3> const &Set) { return Set.size() != pole.main; }))};
+		ImGui::TextColored(described ? ImVec4(0.6f, 0.9f, 0.6f, 1.0f) : ImVec4(1.0f, 0.6f, 0.3f, 1.0f), STR_C("%zu. %s  (wires: %zu, sets: %zu, other: %zu)"), index + 1, pole.file.c_str(), pole.main, pole.sets.size(), others);
+		if (ImGui::IsItemHovered() && described)
+		{
+			std::string labels;
+			for (std::size_t set = 0; set < pole.sets.size(); ++set)
+				labels += format("%zu: %s (%zu)\n", set + 1, pole.labels[set].empty() ? "-" : pole.labels[set].c_str(), pole.sets[set].size());
+			ImGui::SetTooltip("%s", labels.c_str());
+		}
 	}
-	if (std::ranges::any_of(state.poles, [](editor_mode_wiring_pole const &Pole) { return Pole.points.empty(); }))
+	if (std::ranges::any_of(state.poles, [](editor_mode_wiring_pole const &Pole) { return Pole.sets.empty(); }))
 		ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "%s", STR_C("A pole of a template without the block: click it again to take it out of the list"));
 	if (begin_fields("##wiringsag", 0.45f))
 	{
@@ -1385,9 +1464,9 @@ void editor_mode::render_wiring_options()
 		field_row("Sag to (m)##wiring");
 		ImGui::DragFloat("##sagmax", &state.sag_max, 0.05f, 0.0f, 30.0f, "%.2f");
 		state.sag_max = std::max(state.sag_max, state.sag_min);
-		field_row("Earth wire sags less##wiring");
+		field_row("Earth wire too##wiring");
 		ImGui::Checkbox("##earth", &state.earth);
-		item_tooltip("The wire at the top of the pole, over the others by half a metre at least, sags this part of the span");
+		item_tooltip("The sets of fewer points the templates have apart, as the earth wire (OPGW), led too where all the poles have one; they sag this part of the span");
 		if (state.earth)
 		{
 			ImGui::SameLine();

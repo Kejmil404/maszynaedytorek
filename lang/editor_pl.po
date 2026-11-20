@@ -15301,11 +15301,7 @@ msgstr "Zwis od (m)##wiring"
 msgid "Sag to (m)##wiring"
 msgstr "Zwis do (m)##wiring"
 
-msgid "Earth wire sags less##wiring"
-msgstr "Odgromowy zwisa mniej##wiring"
 
-msgid "The wire at the top of the pole, over the others by half a metre at least, sags this part of the span"
-msgstr "Przewód na szczycie słupa, co najmniej pół metra nad pozostałymi, zwisa o tę część zwisu przęsła"
 
 msgid "Pick the sags again"
 msgstr "Losuj zwisy ponownie"
@@ -15318,3 +15314,12 @@ msgstr "Poprowadź przewody: %zu"
 
 msgid "The poles clicked one after another, the wires led along them where the templates of the poles say they hang"
 msgstr "Kolejno klikane słupy; przewody prowadzone po nich tam, gdzie według szablonów słupów wiszą"
+
+msgid "%zu. %s  (wires: %zu, sets: %zu, other: %zu)"
+msgstr "%zu. %s  (przewody: %zu, komplety: %zu, inne: %zu)"
+
+msgid "Earth wire too##wiring"
+msgstr "Także linka odgromowa##wiring"
+
+msgid "The sets of fewer points the templates have apart, as the earth wire (OPGW), led too where all the poles have one; they sag this part of the span"
+msgstr "Komplety z mniejszą liczbą punktów, wpisane w szablonach osobno, jak linka odgromowa (OPGW), też są prowadzone, jeśli mają je wszystkie słupy; zwisają o tę część zwisu przęsła"

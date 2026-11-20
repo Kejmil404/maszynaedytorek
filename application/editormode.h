@@ -165,13 +165,21 @@ struct editor_mode_scenery_cable
 
 // the block of an *.inc template of a pole which tells the automatons of the wires (druty.exe) where they hang: the parameters of the
 // include holding its place and its turns, the points in the frame of the pole, and whether the points turn with it
+// A template may have several sets of points: where the wires come in and where they go out of a strain or an angle pole, the
+// earth wire written apart, the simple form for druty.exe
+struct editor_mode_wiring_set
+{
+	std::string label; // the comment before it
+	std::vector<glm::dvec3> points; // as the block gives them
+};
 struct editor_mode_wiring_block
 {
 	bool found{false};
 	std::vector<int> parameters; // x, y, z, then the turns about y, x, z, by the numbers of the parameters (p1 is 1)
-	std::vector<glm::dvec3> points; // as the block gives them
+	std::vector<editor_mode_wiring_set> sets;
 	bool turned{true}; // Obrot=Y
-	int axes{-1}; // how the three numbers of a point stand for the axes of the scenery, worked out against the model; -1 not yet
+	int axes{-1}; // how the three numbers of a point stand for the axes of the scenery and which way the turn goes, worked out against
+	              // the model; -1 not yet
 };
 
 // a pole the wires are led along, as the editor read it
@@ -181,7 +189,9 @@ struct editor_mode_wiring_pole
 	TAnimModel const *model{nullptr}; // the model picked, of the template
 	std::string file; // of the template
 	glm::dvec3 origin{0.0};
-	std::vector<glm::dvec3> points; // where the wires hang, in the world; empty without the block
+	std::vector<std::vector<glm::dvec3>> sets; // where the wires hang, in the world, each set of the block; empty without it
+	std::vector<std::string> labels;
+	std::size_t main{0}; // the wires most of the sets have: the main ones; sets of fewer points are the earth wire and the like
 };
 
 // the cables of the editor, with the lines of the scenery files taken over by them, as a step of the history holds them
@@ -1301,7 +1311,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::map<std::string, editor_mode_wiring_block> blocks; // of the templates read, by their files
 		float sag_min{0.6f}; // m, the sag of a span picked at random between these
 		float sag_max{1.2f};
-		bool earth{true}; // the wire at the top, over the others, sags less
+		bool earth{true}; // the sets of fewer points, the earth wire written apart, are led too, sagging less
 		float earth_share{0.8f};
 		std::uint32_t seed{1}; // the sags picked again with another one
 		std::vector<glm::dvec3> laid; // the points of the cable being laid
