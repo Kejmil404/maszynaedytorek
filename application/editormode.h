@@ -1314,6 +1314,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool earth{true}; // the sets of fewer points, the earth wire written apart, are led too, sagging less
 		float earth_share{0.8f};
 		std::uint32_t seed{1}; // the sags picked again with another one
+		bool templates_listed{false};
+		std::map<std::string, std::string> templates; // the *.inc files of the scenery folder, by their names without the extension
 		std::vector<glm::dvec3> laid; // the points of the cable being laid
 		int extending{-1}; // the cable the points laid go on at the end of, -1: a new one
 		cable model; // what a new cable gets
@@ -1362,6 +1364,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the wiring (application/editormodecables.cpp)
 	void wiring_pick(TAnimModel const *Model);
 	bool wiring_pole(TAnimModel const &Model, editor_mode_wiring_pole &Pole);
+	std::string wiring_template(TAnimModel const &Model);
 	void wiring_order();
 	std::vector<cable> wiring_cables() const;
 	void wiring_insert();

@@ -36,6 +36,7 @@ http://mozilla.org/MPL/2.0/.
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -65,6 +66,11 @@ struct colour_preset
 	std::array<int, 3> colour;
 };
 std::array const kColourPresets{colour_preset{"Black##cable", {25, 25, 25}}, colour_preset{"Copper##cable", {150, 95, 50}}, colour_preset{"Aluminium##cable", {165, 165, 170}}, colour_preset{"Grey##cable", {90, 90, 90}}};
+
+std::filesystem::path path_of_text(std::string_view const Text)
+{
+	return std::filesystem::path{std::u8string{Text.begin(), Text.end()}};
+}
 
 std::string cables_file()
 {
@@ -1185,15 +1191,25 @@ bool editor_mode::wiring_pole(TAnimModel const &Model, editor_mode_wiring_pole &
 	auto &state{m_cables};
 	Pole = {};
 	Pole.model = &Model;
-	auto const instance{Model.m_instance};
-	if (false == scene::Layers.tracked(instance) || scene::Layers.instance(instance).file == nullptr)
-		return false;
-	auto const &include{scene::Layers.instance(instance)};
-	Pole.instance = instance;
-	Pole.file = *include.file;
-	std::string file;
 	std::vector<std::string> values;
-	if (false == editor_includes::parse_directive(scene::Layers.directive(instance), file, values))
+	scene::layer_context context;
+	glm::dvec3 local{0.0};
+	// the include of the template, when the scenery was opened for editing; else the template named as the model is, placed where
+	// the model stands, turned as it's turned
+	auto const instance{Model.m_instance};
+	auto const tracked{scene::Layers.tracked(instance) && scene::Layers.instance(instance).file != nullptr};
+	if (tracked)
+	{
+		auto const &include{scene::Layers.instance(instance)};
+		Pole.instance = instance;
+		Pole.file = *include.file;
+		context = include.context;
+		std::string file;
+		editor_includes::parse_directive(scene::Layers.directive(instance), file, values);
+	}
+	else
+		Pole.file = wiring_template(Model);
+	if (Pole.file.empty())
 		return false;
 	auto lookup{state.blocks.find(Pole.file)};
 	if (lookup == state.blocks.end())
@@ -1203,11 +1219,21 @@ bool editor_mode::wiring_pole(TAnimModel const &Model, editor_mode_wiring_pole &
 		lookup = state.blocks.emplace(Pole.file, read_block(text)).first;
 	}
 	auto &block{lookup->second};
-	glm::dvec3 const local{parameter_value(values, block.parameters, 0), parameter_value(values, block.parameters, 1), parameter_value(values, block.parameters, 2)};
-	Pole.origin = include.context.to_world(local);
+	double turn{0.0};
+	if (tracked)
+	{
+		local = {parameter_value(values, block.parameters, 0), parameter_value(values, block.parameters, 1), parameter_value(values, block.parameters, 2)};
+		Pole.origin = context.to_world(local);
+		turn = (block.turned ? parameter_value(values, block.parameters, 3) : 0.0) + static_cast<double>(context.rotation.y);
+	}
+	else
+	{
+		Pole.origin = Model.location();
+		turn = block.turned ? static_cast<double>(Model.Angles().y) : 0.0;
+	}
 	if (false == block.found)
 		return false;
-	auto const yaw{glm::radians((block.turned ? parameter_value(values, block.parameters, 3) : 0.0) + static_cast<double>(include.context.rotation.y))};
+	auto const yaw{glm::radians(turn)};
 	auto const place = [&Pole, yaw](glm::dvec3 const &Point, int const Axes) { return Pole.origin + glm::rotateY(axes_of(Point, Axes), (Axes & 8) != 0 ? -yaw : yaw); };
 	// the way the numbers stand for the axes and the turn goes, worked out once a template: the one whose points lie nearest to the
 	// model of the pole
@@ -1261,9 +1287,9 @@ void editor_mode::wiring_pick(TAnimModel const *Model)
 	if (std::erase_if(state.poles, [Model](editor_mode_wiring_pole const &Pole) { return Pole.model == Model || (Pole.instance != 0 && Pole.instance == Model->m_instance); }) > 0)
 		return;
 	editor_mode_wiring_pole pole;
-	if (false == wiring_pole(*Model, pole) && pole.instance == 0)
+	if (false == wiring_pole(*Model, pole) && pole.file.empty())
 	{
-		state.status = STR("This model isn't of an include of a template: the wires are led along the poles placed with their templates");
+		state.status = STR("No template of this model was found: the wires are led along the poles whose template (*.inc) is named as their model");
 		return;
 	}
 	if (pole.sets.empty())
@@ -1429,7 +1455,7 @@ void editor_mode::render_wiring_options()
 	ImGui::PopTextWrapPos();
 	if (ImGui::SmallButton(STR_C("The selected models of the surroundings")))
 		for (auto *node : m_selection)
-			if (auto const *model{dynamic_cast<TAnimModel const *>(node)}; model != nullptr && std::ranges::none_of(state.poles, [model](editor_mode_wiring_pole const &Pole) { return Pole.instance == model->m_instance; }))
+			if (auto const *model{dynamic_cast<TAnimModel const *>(node)}; model != nullptr && std::ranges::none_of(state.poles, [model](editor_mode_wiring_pole const &Pole) { return Pole.model == model || (Pole.instance != 0 && Pole.instance == model->m_instance); }))
 				wiring_pick(model);
 	item_tooltip("The models selected in the surroundings (F2) taken as the poles, each of them once");
 	ImGui::SameLine();
@@ -1485,4 +1511,38 @@ void editor_mode::render_wiring_options()
 	if (main_button(format(STR_C("Lead %zu wires"), wires.size()).c_str(), ImVec2(-FLT_MIN, 0.0f)))
 		wiring_insert();
 	ImGui::EndDisabled();
+}
+
+// the template of a pole placed without the editor keeping track of its include: the *.inc named as its model, next to where the
+// model is in the scenery folder, else of that name anywhere in it
+std::string editor_mode::wiring_template(TAnimModel const &Model)
+{
+	auto &state{m_cables};
+	if (Model.Model() == nullptr)
+		return {};
+	auto name{ToLower(Model.Model()->NameGet())};
+	std::ranges::replace(name, '\\', '/');
+	if (auto const models{name.find("models/")}; models != std::string::npos)
+		name.erase(0, models + 7);
+	if (auto const dot{name.rfind('.')}; dot != std::string::npos && dot > name.rfind('/') + 1)
+		name.erase(dot);
+	std::error_code error;
+	if (std::filesystem::exists(path_of_text(Global.asCurrentSceneryPath + name + ".inc"), error))
+		return name + ".inc";
+	// the templates of the scenery folder by their names, gathered once
+	if (false == state.templates_listed)
+	{
+		state.templates_listed = true;
+		std::filesystem::path const root{path_of_text(Global.asCurrentSceneryPath)};
+		for (std::filesystem::recursive_directory_iterator entry{root, std::filesystem::directory_options::skip_permission_denied, error}, end; entry != end; entry.increment(error))
+		{
+			if (error || false == entry->is_regular_file(error) || ToLower(entry->path().extension().string()) != ".inc")
+				continue;
+			auto const relative{std::filesystem::relative(entry->path(), root, error).generic_u8string()};
+			state.templates.try_emplace(ToLower(entry->path().stem().string()), std::string{relative.begin(), relative.end()});
+		}
+	}
+	auto const stem{name.substr(name.rfind('/') + 1)};
+	auto const found{state.templates.find(stem)};
+	return found != state.templates.end() ? found->second : std::string{};
 }

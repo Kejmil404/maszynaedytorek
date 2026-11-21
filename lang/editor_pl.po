@@ -15262,8 +15262,6 @@ msgstr "Oznaczone linie z plików scenerii w pobliżu kamery: można je wybrać 
 msgid "The points of %s lie %.1f m from its model on average: check the block of its template"
 msgstr "Punkty z %s leżą średnio %.1f m od jego modelu: sprawdź blok w jego szablonie"
 
-msgid "This model isn't of an include of a template: the wires are led along the poles placed with their templates"
-msgstr "Ten model nie pochodzi z includa szablonu: przewody prowadzi się po słupach wstawionych z ich szablonów"
 
 msgid "The template %s has no block for the automatons of the wires: the wires are led along poles which all have it"
 msgstr "Szablon %s nie ma bloku dla automatów drutowania: przewody prowadzi się tylko po słupach, które go mają"
@@ -15323,3 +15321,6 @@ msgstr "Także linka odgromowa##wiring"
 
 msgid "The sets of fewer points the templates have apart, as the earth wire (OPGW), led too where all the poles have one; they sag this part of the span"
 msgstr "Komplety z mniejszą liczbą punktów, wpisane w szablonach osobno, jak linka odgromowa (OPGW), też są prowadzone, jeśli mają je wszystkie słupy; zwisają o tę część zwisu przęsła"
+
+msgid "No template of this model was found: the wires are led along the poles whose template (*.inc) is named as their model"
+msgstr "Nie znaleziono szablonu tego modelu: przewody prowadzi się po słupach, których szablon (*.inc) nazywa się tak jak ich model"
