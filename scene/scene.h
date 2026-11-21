@@ -139,6 +139,13 @@ public:
     // adds provided lines to the cell
     void
         insert( lines_node Lines );
+    // the editor: lines of its own in the cell, kept apart from the ones merged at the load, and made renderable at once. Slot: where
+    // they are in the cell, -1 for new ones; no lines take them out. returns: their slot, -1 once taken out
+    int
+        editor_lines( int Slot, lines_node const *Lines, gfx::geometrybank_handle const &Bank );
+    // the editor: the lines between the ends of specified segments taken out of the ones merged at the load. returns: how many
+    std::size_t
+        cut_lines( std::vector<std::array<glm::dvec3, 2>> const &Segments, gfx::geometrybank_handle const &Bank );
     // adds provided path to the cell
     void
         insert( TTrack *Path );
@@ -280,6 +287,7 @@ public:
     shapenode_sequence m_shapesopaque; // opaque pieces of geometry
     shapenode_sequence m_shapestranslucent; // translucent pieces of geometry
     linesnode_sequence m_lines;
+    std::vector<int> m_editorlines; // the slots of m_lines the editor keeps lines of its own in
     path_sequence m_paths; // path pieces
     instance_sequence m_instancesopaque;
     instance_sequence m_instancetranslucent;
@@ -476,6 +484,20 @@ public:
     // inserts provided lines in the region
     void
         insert( lines_node Lines, scratch_data &Scratchpad );
+    // the editor: where lines of its own are kept in the region
+    struct editor_lines_place {
+        basic_section *section { nullptr };
+        basic_cell *cell { nullptr };
+        int slot { -1 };
+    };
+    // the editor: lines of its own put in the region, or changed, rendered at once as they are; no lines take them out. Lines have
+    // their vertices in the world, their bounding area worked out. returns: where they are now
+    editor_lines_place
+        editor_lines( editor_lines_place const &Place, lines_node const *Lines );
+    // the editor: the lines between the ends of specified segments taken out of the lines merged at the load, near specified point.
+    // returns: how many were taken
+    std::size_t
+        cut_lines( glm::dvec3 const &Point, float const Radius, std::vector<std::array<glm::dvec3, 2>> const &Segments );
     // inserts provided node in the region
     template <class Type_>
     void

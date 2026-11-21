@@ -582,6 +582,7 @@ editor_mode::editor_mode() {
 	});
 	ui()->set_array_options([this]() { render_array(); });
 	ui()->set_bend_options([this]() { render_bend(); });
+	ui()->set_bend_active([this]() { return m_bend.edited != nullptr && false == m_bend.edited->m_editorremoved; });
 	ui()->set_file_actions([this]() { save(); }, [this]() { export_scenery(); });
 	ui()->set_new_scenery([this]() { m_newscenery_asked = true; });
 	ui()->set_open_scenery([this]() { m_openscenery_asked = true; });
@@ -1132,7 +1133,8 @@ void editor_mode::undo_one()
 
     if (snap.action == EditorSnapshot::Action::Bend)
     {
-        restore_bend(snap, true);
+        // a model made plain again comes back bent
+        restore_bend(snap, false == snap.straightened);
         g_redo.push_back(std::move(snap));
         return;
     }
@@ -1329,7 +1331,7 @@ void editor_mode::redo_one()
 
     if (snap.action == EditorSnapshot::Action::Bend)
     {
-        restore_bend(snap, false);
+        restore_bend(snap, snap.straightened);
         m_history.push_back(std::move(snap));
         return;
     }
@@ -1775,6 +1777,7 @@ bool editor_mode::update()
     draw_cables_overlay();
     if (m_cables_open)
         cables_track_changes();
+    draw_bend_banner();
     autosave_update();
 
     steps.step("roads");
@@ -5379,6 +5382,7 @@ void editor_mode::choose_work_area(work_area const Area)
 		events_workspace(false);
 	if (Area != work_area::cables && m_cables_open)
 		cables_workspace(false);
+	bend_leave();
 	switch (Area)
 	{
 	case work_area::surroundings:
@@ -7967,6 +7971,12 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
             area_finish(false);
             break;
         }
+        // the editing of a model bent along the track ended, as Done does
+        if (is_press(Action) && m_bend.edited != nullptr)
+        {
+            bend_leave();
+            break;
+        }
         // the cables: the cable being laid dropped, then the Lay tool given up, then what's selected deselected
         if (is_press(Action) && m_cables_open)
         {
@@ -8215,6 +8225,8 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
     {
         if (is_press(Action))
             cables_click();
+        else if (m_cables.boxing)
+            cables_box_finish();
         m_input.mouse.button(Button, Action);
         return;
     }
@@ -8260,6 +8272,9 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
         m_input.mouse.button(Button, Action);
         return;
     }
+    // a click anywhere else in the view ends the editing of a model bent, as Done does
+    if (Button == GLFW_MOUSE_BUTTON_LEFT && is_press(Action) && m_bend.edited != nullptr && false == m_bend.picking && false == ImGui::GetIO().WantCaptureMouse)
+        bend_leave();
 
     if (m_bend.picking && Button == GLFW_MOUSE_BUTTON_LEFT && ui()->mode() != nodebank_panel::TRACK)
     {

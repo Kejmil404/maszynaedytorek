@@ -15,6 +15,7 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/parser.h"
 #include "utilities/Logs.h"
 #include "scene/sn_utils.h"
+#include "utilities/Globals.h"
 
 // stores content of the struct in provided output stream
 void
@@ -681,7 +682,75 @@ lines_node::create_geometry( gfx::geometrybank_handle const &Bank ) {
             vertex.texture );
     }
     m_data.geometry = GfxRenderer->Insert( vertices, m_data.userdata, Bank, GL_LINES );
-    std::vector<world_vertex>().swap( m_data.vertices ); // hipster shrink_to_fit
+    // a scenery opened for editing keeps them: the editor changes and takes out lines while it runs
+    if( false == Global.editor_session ) {
+        std::vector<world_vertex>().swap( m_data.vertices ); // hipster shrink_to_fit
+    }
+}
+
+// the editor, with the vertices kept: the bounding area of the vertices held
+void
+lines_node::bound() {
+
+    if( m_data.vertices.empty() ) { return; }
+    m_data.area.center = glm::dvec3{ 0.0 };
+    for( auto const &vertex : m_data.vertices ) {
+        m_data.area.center += vertex.position;
+    }
+    m_data.area.center /= static_cast<double>( m_data.vertices.size() );
+    compute_radius();
+}
+
+// the editor, with the vertices kept: the renderable version made again from the vertices held
+void
+lines_node::update_geometry( gfx::geometrybank_handle const &Bank ) {
+
+    gfx::vertex_array vertices; vertices.reserve( m_data.vertices.size() );
+    for( auto const &vertex : m_data.vertices ) {
+        vertices.emplace_back(
+            vertex.position - m_data.origin,
+            vertex.normal,
+            vertex.texture );
+    }
+    gfx::userdata_array userdata;
+    if( m_data.geometry != null_handle ) {
+        GfxRenderer->Replace( vertices, userdata, m_data.geometry, GL_LINES );
+    }
+    else if( Bank != null_handle && false == vertices.empty() ) {
+        m_data.geometry = GfxRenderer->Insert( vertices, userdata, Bank, GL_LINES );
+    }
+}
+
+// the editor, with the vertices kept: takes out the lines between the ends of specified segments
+std::size_t
+lines_node::cut( std::vector<std::array<glm::dvec3, 2>> const &Segments, double const Tolerance ) {
+
+    if( m_data.vertices.size() < 2 || Segments.empty() ) { return 0; }
+    auto const tolerance2 { Tolerance * Tolerance };
+    auto const near = [ tolerance2 ]( glm::dvec3 const &Left, glm::dvec3 const &Right ) {
+        return glm::length2( Left - Right ) <= tolerance2; };
+    std::vector<world_vertex> kept;
+    kept.reserve( m_data.vertices.size() );
+    std::size_t taken { 0 };
+    for( std::size_t index = 0; index + 1 < m_data.vertices.size(); index += 2 ) {
+        auto const &from { m_data.vertices[ index ].position };
+        auto const &to { m_data.vertices[ index + 1 ].position };
+        auto const matched { std::any_of(
+            std::begin( Segments ), std::end( Segments ),
+            [ & ]( std::array<glm::dvec3, 2> const &Segment ) {
+                return ( near( from, Segment[ 0 ] ) && near( to, Segment[ 1 ] ) )
+                    || ( near( from, Segment[ 1 ] ) && near( to, Segment[ 0 ] ) ); } ) };
+        if( matched ) {
+            ++taken;
+            continue;
+        }
+        kept.push_back( m_data.vertices[ index ] );
+        kept.push_back( m_data.vertices[ index + 1 ] );
+    }
+    if( taken > 0 ) {
+        m_data.vertices.swap( kept );
+    }
+    return taken;
 }
 
 // calculates node's bounding radius

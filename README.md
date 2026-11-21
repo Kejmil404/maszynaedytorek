@@ -37,6 +37,8 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 - Widok z góry działa też w starym rendererze OpenGL.
 
 **Wygląd edytora**
+- Commit i data builda w prawym górnym rogu paska.
+- Wyginanie modelu (B): pasek trybu, wyjście Esc, panel na górze Inspektora, „Wyprostuj” z powrotem do zwykłego modelu.
 - Osiem kolorów akcentu, jasność i przezroczystość paneli.
 - Autozapis co wybraną liczbę minut (domyślnie wyłączony), z licznikiem na pasku statusu.
 
@@ -48,6 +50,7 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 - Przełączniki świateł: event `lights` z launcherem (o godzinie, zapal/zgaś o dwóch godzinach, na klawisz, przy zbliżeniu), kilka modeli naraz, warunek na komórce pamięci, „Wypróbuj”.
 - Zakładka Kable (F7): prowadzenie kabli (`line_strip`) ze zwisem przęseł, przyciąganie do punktów modeli i innych kabli, edycja punktów gizmem, przejmowanie do edycji linii z plików scenerii.
 - Drutowanie: przewody prowadzone automatycznie po kolejno wskazanych słupach, według bloku dla druty.exe z ich plików .inc, z losowym zwisem przęseł w zadanym zakresie.
+- Kable widoczne na żywo w scenerii podczas edycji; zaznaczanie kilku kabli (Shift+LPM, Shift i prostokąt) ze wspólną edycją.
 
 
 ## Table of Contents

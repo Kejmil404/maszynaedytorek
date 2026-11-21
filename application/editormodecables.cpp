@@ -24,7 +24,9 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorIncludeInfo.hpp"
 #include "model/AnimModel.h"
 #include "rendering/renderer.h"
+#include "scene/scene.h"
 #include "scene/scenelayers.h"
+#include "utilities/parser.h"
 #include "simulation/simulation.h"
 #include "utilities/Globals.h"
 #include "utilities/translation.h"
@@ -320,6 +322,39 @@ ImU32 colour_of(std::array<int, 3> const &Colour, int const Alpha)
 	return IM_COL32(Colour[0], Colour[1], Colour[2], Alpha);
 }
 
+// the lines the game draws of the points, as it reads a line_strip: the same colour, width and ranges
+scene::lines_node lines_of(std::vector<glm::dvec3> const &Points, std::array<int, 3> const &Colour, float const Width, float const Range, float const Range_min)
+{
+	scene::lines_node lines;
+	if (Points.size() < 2)
+		return lines;
+	std::string text{format("%d %d %d %.3f", Colour[0], Colour[1], Colour[2], Width)};
+	for (auto const &point : Points)
+		text += ' ' + point_text(point);
+	text += " endline";
+	scene::node_data data;
+	data.type = "line_strip";
+	data.range_max = Range > 0.0f ? Range : -1.0;
+	data.range_min = Range_min;
+	cParser parser{text, cParser::buffer_TEXT};
+	lines.import(parser, data);
+	lines.bound();
+	return lines;
+}
+
+// the segments between the points of each chain, as the game keeps them
+std::vector<std::array<glm::dvec3, 2>> segments_of(std::vector<std::vector<glm::dvec3>> const &Chains)
+{
+	std::vector<std::array<glm::dvec3, 2>> segments;
+	for (auto const &chain : Chains)
+		for (std::size_t at = 0; at + 1 < chain.size(); ++at)
+		{
+			std::array<glm::dvec3, 2> const segment{chain[at], chain[at + 1]};
+			segments.push_back(segment);
+		}
+	return segments;
+}
+
 editor_mode_cables content_of(std::vector<editor_mode_cable> const &Cables, std::vector<std::uint32_t> const &Taken)
 {
 	return {Cables, Taken};
@@ -539,8 +574,71 @@ void editor_mode::cables_deselect()
 {
 	auto &state{m_cables};
 	state.selected = -1;
+	state.also.clear();
 	state.point = -1;
 	state.scenery_selected = -1;
+}
+
+std::vector<int> editor_mode::cables_chosen() const
+{
+	auto const &state{m_cables};
+	std::vector<int> chosen;
+	auto const valid = [&state](int const Index) { return Index >= 0 && Index < static_cast<int>(state.cables.size()); };
+	if (valid(state.selected))
+		chosen.push_back(state.selected);
+	for (auto const index : state.also)
+		if (valid(index) && std::ranges::find(chosen, index) == chosen.end())
+			chosen.push_back(index);
+	return chosen;
+}
+
+// Shift+LMB on a cable: it goes into the selection, or out of it
+void editor_mode::cables_toggle(int const Index)
+{
+	auto &state{m_cables};
+	state.scenery_selected = -1;
+	state.point = -1;
+	if (Index == state.selected)
+	{
+		// the next one of the others takes its place
+		state.selected = state.also.empty() ? -1 : state.also.front();
+		if (false == state.also.empty())
+			state.also.erase(state.also.begin());
+		return;
+	}
+	if (std::erase(state.also, Index) > 0)
+		return;
+	if (state.selected < 0)
+		state.selected = Index;
+	else
+		state.also.push_back(Index);
+}
+
+// the cables with a piece in the box drawn on the screen go into the selection
+void editor_mode::cables_box_finish()
+{
+	auto &state{m_cables};
+	state.boxing = false;
+	auto const &mouse{ImGui::GetIO().MousePos};
+	glm::vec2 const low{std::min(state.box_from.x, mouse.x), std::min(state.box_from.y, mouse.y)};
+	glm::vec2 const high{std::max(state.box_from.x, mouse.x), std::max(state.box_from.y, mouse.y)};
+	if (high.x - low.x < 4.0f && high.y - low.y < 4.0f)
+		return;
+	screen_projection const projection;
+	auto const inside = [&low, &high](ImVec2 const &At) { return At.x >= low.x && At.x <= high.x && At.y >= low.y && At.y <= high.y; };
+	for (std::size_t index = 0; index < state.cables.size(); ++index)
+	{
+		auto const chosen{cables_chosen()};
+		if (std::ranges::find(chosen, static_cast<int>(index)) != chosen.end())
+			continue;
+		auto const points{drawn_points(state.cables[index])};
+		auto const hit{std::ranges::any_of(points, [&projection, &inside](glm::dvec3 const &Point) {
+			ImVec2 at;
+			return projection.project(Point, at) && inside(at);
+		})};
+		if (hit)
+			cables_toggle(static_cast<int>(index));
+	}
 }
 
 void editor_mode::cables_cancel()
@@ -585,6 +683,16 @@ void editor_mode::cables_delete()
 	auto &state{m_cables};
 	if (state.selected < 0 || state.selected >= static_cast<int>(state.cables.size()))
 		return;
+	// several selected: all of them go
+	if (auto chosenmany{cables_chosen()}; chosenmany.size() > 1)
+	{
+		std::ranges::sort(chosenmany, std::greater<>{});
+		for (auto const index : chosenmany)
+			state.cables.erase(state.cables.begin() + index);
+		cables_deselect();
+		state.status = format(STR_C("Cables deleted: %zu; they go out of the scenery with the next save"), chosenmany.size());
+		return;
+	}
 	auto &chosen{state.cables[state.selected]};
 	// a point of a cable which keeps two at least, else the cable
 	if (state.point >= 0 && state.point < static_cast<int>(chosen.points.size()) && chosen.points.size() > 2)
@@ -611,6 +719,7 @@ void editor_mode::cables_take_over(scenery_cable &Lines)
 	}
 	Lines.taken = true;
 	state.taken.push_back(Lines.id);
+	cables_hide_lines(Lines);
 	// a cable of each chain, its points as they are: no sag added, the lines look the same
 	auto const base{Lines.name.empty() || Lines.name == "none" ? std::string{"kabel"} : name_of_typed(Lines.name)};
 	for (std::size_t index = 0; index < Lines.chains.size(); ++index)
@@ -629,7 +738,7 @@ void editor_mode::cables_take_over(scenery_cable &Lines)
 	}
 	cables_deselect();
 	state.selected = static_cast<int>(state.cables.size()) - 1;
-	state.status = STR("Taken over: on save the lines go from their file to the file of the cables; the game shows them as they were until the scenery is loaded again");
+	state.status = STR("Taken over: on save the lines go from their file to the file of the cables");
 }
 
 // where the next point goes, from where the cursor is: a point of a model or of a cable near it on the screen with the magnet on,
@@ -731,8 +840,32 @@ bool editor_mode::cables_click()
 	}
 	screen_projection const projection;
 	auto const &mouse{ImGui::GetIO().MousePos};
+	// Shift: the cable under the cursor into the selection or out of it, else a box drawn
+	if (Global.shiftState)
+	{
+		auto best{kPickPixels};
+		int hit{-1};
+		for (std::size_t index = 0; index < state.cables.size(); ++index)
+		{
+			auto const points{drawn_points(state.cables[index])};
+			for (std::size_t piece = 0; piece + 1 < points.size(); ++piece)
+				if (auto const distance{screen_distance(projection, points[piece], points[piece + 1], mouse)}; distance < best)
+				{
+					best = distance;
+					hit = static_cast<int>(index);
+				}
+		}
+		if (hit >= 0)
+			cables_toggle(hit);
+		else
+		{
+			state.boxing = true;
+			state.box_from = {mouse.x, mouse.y};
+		}
+		return true;
+	}
 	// a point of the cable selected, then a cable of the editor, then lines of the scenery
-	if (state.selected >= 0 && state.selected < static_cast<int>(state.cables.size()))
+	if (state.selected >= 0 && state.selected < static_cast<int>(state.cables.size()) && state.also.empty())
 	{
 		auto &chosen{state.cables[state.selected]};
 		auto best{kPickPixels};
@@ -841,8 +974,15 @@ void editor_mode::restore_cables(EditorSnapshot &Snapshot)
 	{
 		auto const taken{std::ranges::find(state.taken, lines.id) != state.taken.end()};
 		if (taken != lines.taken && scene::Layers.erase_lines(lines.id, taken))
+		{
 			lines.taken = taken;
+			if (taken)
+				cables_hide_lines(lines);
+			else
+				cables_restore_lines(lines);
+		}
 	}
+	std::erase_if(state.also, [&state](int const Index) { return Index >= static_cast<int>(state.cables.size()); });
 	if (state.selected >= static_cast<int>(state.cables.size()))
 		cables_deselect();
 	if (state.selected >= 0 && state.point >= static_cast<int>(state.cables[state.selected].points.size()))
@@ -959,11 +1099,20 @@ void editor_mode::render_cables_tool_options()
 		ImGui::SeparatorText(STR_C("Cables"));
 		ImGui::TextDisabled("%s", STR_C("LMB: select a cable or a point of it   Gizmo: move the point   Ctrl+LMB: a point into the span   Del: delete"));
 		for (std::size_t index = 0; index < state.cables.size(); ++index)
-			if (ImGui::Selectable(format(STR_C("%s  (points: %zu)##cable%zu"), state.cables[index].name.c_str(), state.cables[index].points.size(), index).c_str(), static_cast<int>(index) == state.selected))
+		{
+			auto const selection{cables_chosen()};
+			auto const chosen{std::ranges::find(selection, static_cast<int>(index)) != selection.end()};
+			if (ImGui::Selectable(format(STR_C("%s  (points: %zu)##cable%zu"), state.cables[index].name.c_str(), state.cables[index].points.size(), index).c_str(), chosen))
 			{
-				cables_deselect();
-				state.selected = static_cast<int>(index);
+				if (ImGui::GetIO().KeyShift)
+					cables_toggle(static_cast<int>(index));
+				else
+				{
+					cables_deselect();
+					state.selected = static_cast<int>(index);
+				}
 			}
+		}
 		if (state.cables.empty())
 			ImGui::TextDisabled("%s", STR_C("No cables yet: the Lay tool (2) lays them"));
 		auto const others{static_cast<std::size_t>(std::ranges::count_if(state.scenery, [](scenery_cable const &Lines) { return false == Lines.taken; }))};
@@ -987,7 +1136,12 @@ void editor_mode::render_cables_selection()
 	}
 	if (state.selected < 0 || state.selected >= static_cast<int>(state.cables.size()))
 	{
-		ImGui::TextDisabled("%s", STR_C("Click a cable in the view, or in the list, to change it"));
+		ImGui::TextDisabled("%s", STR_C("Click a cable in the view, or in the list, to change it; Shift+LMB or Shift and a drag select more"));
+		return;
+	}
+	if (auto const chosen{cables_chosen()}; chosen.size() > 1)
+	{
+		render_cables_many(chosen);
 		return;
 	}
 	render_cable(state.cables[state.selected]);
@@ -1094,6 +1248,7 @@ void editor_mode::render_scenery_cable(scenery_cable &Lines)
 void editor_mode::draw_cables_overlay()
 {
 	auto &state{m_cables};
+	cables_live();
 	if (false == m_cables_open)
 		return;
 	cables_snap();
@@ -1109,19 +1264,22 @@ void editor_mode::draw_cables_overlay()
 		if (projection.project(A, a) && projection.project(B, b))
 			drawlist->AddLine(a, b, Colour, Width);
 	};
+	auto const selection{cables_chosen()};
 	for (std::size_t index = 0; index < state.cables.size(); ++index)
 	{
 		auto const &each{state.cables[index]};
-		auto const chosen{static_cast<int>(index) == state.selected};
+		auto const chosen{std::ranges::find(selection, static_cast<int>(index)) != selection.end()};
+		// drawn by the game where it can: the overlay marks the selected ones only
 		auto const points{drawn_points(each)};
-		for (std::size_t at = 0; at + 1 < points.size(); ++at)
-			piece(points[at], points[at + 1], chosen ? IM_COL32(255, 190, 60, 255) : colour_of(each.colour, 230), chosen ? std::max(2.0f, each.width + 1.0f) : std::max(1.0f, each.width));
+		if (chosen || false == state.live_on)
+			for (std::size_t at = 0; at + 1 < points.size(); ++at)
+				piece(points[at], points[at + 1], chosen ? IM_COL32(255, 190, 60, 255) : colour_of(each.colour, 230), chosen ? std::max(2.0f, each.width + 1.0f) : std::max(1.0f, each.width));
 		if (false == state.points && false == chosen)
 			continue;
 		for (std::size_t at = 0; at < each.points.size(); ++at)
 			if (ImVec2 screen; projection.project(each.points[at], screen))
 			{
-				auto const marked{chosen && static_cast<int>(at) == state.point};
+				auto const marked{static_cast<int>(index) == state.selected && static_cast<int>(at) == state.point};
 				drawlist->AddCircleFilled(screen, marked ? 6.0f : 4.0f, marked ? IM_COL32(255, 120, 40, 255) : IM_COL32(255, 235, 150, 220), 10);
 			}
 	}
@@ -1170,6 +1328,13 @@ void editor_mode::draw_cables_overlay()
 				drawlist->AddCircleFilled(screen, 4.0f, IM_COL32(255, 190, 60, 255), 10);
 		if (state.snap.has_value() && false == state.laid.empty())
 			piece(state.laid.back(), *state.snap, IM_COL32(255, 190, 60, 150), 1.5f);
+	}
+	// the box being drawn
+	if (state.boxing)
+	{
+		auto const &mouse{ImGui::GetIO().MousePos};
+		drawlist->AddRectFilled(ImVec2(state.box_from.x, state.box_from.y), mouse, IM_COL32(255, 190, 60, 40));
+		drawlist->AddRect(ImVec2(state.box_from.x, state.box_from.y), mouse, IM_COL32(255, 190, 60, 200), 0.0f, 0, 1.5f);
 	}
 	// where the next point goes: a ring on a point of a model or a cable, a cross on the ground
 	if ((state.laying || ImGuizmo::IsUsing()) && state.snap.has_value())
@@ -1295,26 +1460,64 @@ void editor_mode::wiring_pick(TAnimModel const *Model)
 	if (pole.sets.empty())
 		state.status = format(STR_C("The template %s has no block for the automatons of the wires: the wires are led along poles which all have it"), pole.file.c_str());
 	state.poles.push_back(std::move(pole));
+	// they go along the line as they stand, not as they were picked
+	wiring_order();
 }
 
-// the poles one after another along the line: from the one at an end, each to the nearest one left
+// the poles one after another along the line, whatever order they were picked in: from one of the two farthest apart, each to the
+// nearest one left, then the order mended where two spans cross or a pole was skipped and come back to (2-opt)
 void editor_mode::wiring_order()
 {
 	auto &poles{m_cables.poles};
 	if (poles.size() < 3)
 		return;
-	glm::dvec3 middle{0.0};
-	for (auto const &pole : poles)
-		middle += pole.origin;
-	middle /= static_cast<double>(poles.size());
-	auto const first{std::ranges::max_element(poles, [&middle](auto const &Left, auto const &Right) { return glm::distance(Left.origin, middle) < glm::distance(Right.origin, middle); })};
-	std::iter_swap(poles.begin(), first);
-	for (auto at{poles.begin()}; std::next(at) != poles.end(); ++at)
+	auto const distance = [&poles](std::size_t const A, std::size_t const B) { return glm::distance(glm::dvec2{poles[A].origin.x, poles[A].origin.z}, glm::dvec2{poles[B].origin.x, poles[B].origin.z}); };
+	std::size_t first{0};
+	auto farthest{-1.0};
+	for (std::size_t a = 0; a < poles.size(); ++a)
+		for (std::size_t b = a + 1; b < poles.size(); ++b)
+			if (auto const apart{distance(a, b)}; apart > farthest)
+			{
+				farthest = apart;
+				first = a;
+			}
+	std::vector<std::size_t> order{first};
+	std::vector<bool> used(poles.size(), false);
+	used[first] = true;
+	while (order.size() < poles.size())
 	{
-		auto const from{at->origin};
-		auto const next{std::min_element(std::next(at), poles.end(), [&from](auto const &Left, auto const &Right) { return glm::distance(Left.origin, from) < glm::distance(Right.origin, from); })};
-		std::iter_swap(std::next(at), next);
+		std::size_t next{0};
+		auto nearest{std::numeric_limits<double>::max()};
+		for (std::size_t index = 0; index < poles.size(); ++index)
+			if (false == used[index] && distance(order.back(), index) < nearest)
+			{
+				nearest = distance(order.back(), index);
+				next = index;
+			}
+		used[next] = true;
+		order.push_back(next);
 	}
+	// a stretch of the order turned around where that makes the line shorter, till none does
+	for (bool better{true}; better;)
+	{
+		better = false;
+		for (std::size_t i = 0; i + 2 < order.size(); ++i)
+			for (std::size_t j = i + 2; j < order.size(); ++j)
+			{
+				auto const before{distance(order[i], order[i + 1]) + (j + 1 < order.size() ? distance(order[j], order[j + 1]) : 0.0)};
+				auto const after{distance(order[i], order[j]) + (j + 1 < order.size() ? distance(order[i + 1], order[j + 1]) : 0.0)};
+				if (after + 1e-6 < before)
+				{
+					std::reverse(order.begin() + static_cast<std::ptrdiff_t>(i) + 1, order.begin() + static_cast<std::ptrdiff_t>(j) + 1);
+					better = true;
+				}
+			}
+	}
+	std::vector<editor_mode_wiring_pole> ordered;
+	ordered.reserve(poles.size());
+	for (auto const index : order)
+		ordered.push_back(std::move(poles[index]));
+	poles = std::move(ordered);
 }
 
 namespace
@@ -1451,19 +1654,19 @@ void editor_mode::render_wiring_options()
 	auto &state{m_cables};
 	ImGui::SeparatorText(STR_C("Wiring"));
 	ImGui::PushTextWrapPos(0.0f);
-	ImGui::TextDisabled("%s", STR_C("LMB on the poles one after another (again: out of the list). The templates of the poles tell where the wires hang, in the block for the automatons of the wires (druty.exe); the wires are led along them as the points of each pole go across the line"));
+	ImGui::TextDisabled("%s", STR_C("LMB on the poles, in any order (again: out of the list); they go along the line as they stand. The templates of the poles tell where the wires hang, in the block for the automatons of the wires (druty.exe); the wires are led along them as the points of each pole go across the line"));
 	ImGui::PopTextWrapPos();
 	if (ImGui::SmallButton(STR_C("The selected models of the surroundings")))
-		for (auto *node : m_selection)
+	{
+		// the one the gizmo is on is kept apart from the others
+		auto nodes{m_selection};
+		if (m_node != nullptr && std::ranges::find(nodes, m_node) == nodes.end())
+			nodes.push_back(m_node);
+		for (auto *node : nodes)
 			if (auto const *model{dynamic_cast<TAnimModel const *>(node)}; model != nullptr && std::ranges::none_of(state.poles, [model](editor_mode_wiring_pole const &Pole) { return Pole.model == model || (Pole.instance != 0 && Pole.instance == model->m_instance); }))
 				wiring_pick(model);
-	item_tooltip("The models selected in the surroundings (F2) taken as the poles, each of them once");
-	ImGui::SameLine();
-	ImGui::BeginDisabled(state.poles.size() < 3);
-	if (ImGui::SmallButton(STR_C("Order along the line")))
-		wiring_order();
-	ImGui::EndDisabled();
-	item_tooltip("From the pole at an end, each to the nearest one left: for poles picked out of order");
+	}
+	item_tooltip("The models selected in the surroundings (F2) taken as the poles, each of them once; they go along the line as they stand");
 	ImGui::SameLine();
 	if (ImGui::SmallButton(STR_C("Clear##wiring")))
 		state.poles.clear();
@@ -1545,4 +1748,166 @@ std::string editor_mode::wiring_template(TAnimModel const &Model)
 	auto const stem{name.substr(name.rfind('/') + 1)};
 	auto const found{state.templates.find(stem)};
 	return found != state.templates.end() ? found->second : std::string{};
+}
+
+// several cables selected: what they have in common, changed for all of them at once
+void editor_mode::render_cables_many(std::vector<int> const &Chosen)
+{
+	auto &state{m_cables};
+	ImGui::SeparatorText(format(STR_C("Cables selected: %zu"), Chosen.size()).c_str());
+	double length{0.0};
+	glm::dvec3 middle{0.0};
+	std::size_t count{0};
+	for (auto const index : Chosen)
+	{
+		auto const &each{state.cables[index]};
+		for (std::size_t span = 0; span + 1 < each.points.size(); ++span)
+			length += glm::distance(each.points[span], each.points[span + 1]);
+		for (auto const &point : each.points)
+		{
+			middle += point;
+			++count;
+		}
+	}
+	ImGui::TextDisabled(STR_C("%.1f m of cables in all"), length);
+	// the values of the first one shown; a value changed goes to all of them, the others stay as each has them
+	auto const &first{state.cables[Chosen.front()]};
+	auto const differ = [&state, &Chosen](auto const Field) { return std::ranges::any_of(Chosen, [&state, &Chosen, Field](int const Index) { return state.cables[Index].*Field != state.cables[Chosen.front()].*Field; }); };
+	auto shown{first};
+	render_cable_model(shown);
+	if (differ(&cable::colour) || differ(&cable::width) || differ(&cable::sag) || differ(&cable::segments) || differ(&cable::range))
+		ImGui::TextDisabled("%s", STR_C("The values differ between them: the ones of the first are shown, a value changed is given to all"));
+	for (auto const index : Chosen)
+	{
+		auto &each{state.cables[index]};
+		if (shown.colour != first.colour)
+			each.colour = shown.colour;
+		if (shown.width != first.width)
+			each.width = shown.width;
+		if (shown.sag != first.sag)
+			each.sag = shown.sag;
+		if (shown.segments != first.segments)
+			each.segments = shown.segments;
+		if (shown.range != first.range)
+			each.range = shown.range;
+	}
+	ImGui::Separator();
+	if (ImGui::Button(STR_C("Fly to##cables")) && count > 0)
+		Camera.Pos = middle / static_cast<double>(count) + glm::dvec3{0.0, 25.0, 40.0};
+	ImGui::SameLine();
+	if (ImGui::Button(STR_C("Delete all##cables")))
+		cables_delete();
+}
+
+// the cables drawn by the game as they are: the ones changed made again in the cells of the region
+void editor_mode::cables_live()
+{
+	auto &state{m_cables};
+	state.live_on = Global.editor_session && simulation::Region != nullptr && state.loaded;
+	if (false == state.live_on)
+		return;
+	// the cables of the file of the editor were merged with the other lines at the load: they're drawn as the editor has them now
+	if (false == state.live_cut)
+	{
+		state.live_cut = true;
+		std::vector<std::vector<glm::dvec3>> chains;
+		for (auto const &each : state.cables)
+			chains.push_back(drawn_points(each));
+		cables_cut(chains);
+	}
+	auto const place = [](cables_state::live_cable const &Live) {
+		scene::basic_region::editor_lines_place where;
+		where.section = Live.section;
+		where.cell = Live.cell;
+		where.slot = Live.slot;
+		return where;
+	};
+	auto const store = [](cables_state::live_cable &Live, scene::basic_region::editor_lines_place const &Where) {
+		Live.section = Where.section;
+		Live.cell = Where.cell;
+		Live.slot = Where.slot;
+	};
+	for (std::size_t index = 0; index < state.cables.size(); ++index)
+	{
+		if (index >= state.live.size())
+			state.live.emplace_back();
+		auto &live{state.live[index]};
+		auto const &each{state.cables[index]};
+		if (live.cell != nullptr && live.made == each)
+			continue;
+		live.made = each;
+		auto const lines{lines_of(drawn_points(each), each.colour, each.width, each.range, each.range_min)};
+		store(live, simulation::Region->editor_lines(place(live), each.points.size() >= 2 ? &lines : nullptr));
+		// a cable without its lines is made again when it changes
+		if (live.cell == nullptr)
+			live.made = {};
+	}
+	while (state.live.size() > state.cables.size())
+	{
+		simulation::Region->editor_lines(place(state.live.back()), nullptr);
+		state.live.pop_back();
+	}
+}
+
+void editor_mode::cables_cut(std::vector<std::vector<glm::dvec3>> const &Chains)
+{
+	if (false == Global.editor_session || simulation::Region == nullptr)
+		return;
+	glm::dvec3 middle{0.0};
+	std::size_t count{0};
+	for (auto const &chain : Chains)
+		for (auto const &point : chain)
+		{
+			middle += point;
+			++count;
+		}
+	if (count == 0)
+		return;
+	middle /= static_cast<double>(count);
+	double radius{0.0};
+	for (auto const &chain : Chains)
+		for (auto const &point : chain)
+			radius = std::max(radius, glm::distance(point, middle));
+	// the lines merged into a cell near their middle: the sections around them all
+	simulation::Region->cut_lines(middle, static_cast<float>(radius + scene::EU07_CELLSIZE), segments_of(Chains));
+}
+
+// lines of a scenery file taken over: out of the view, as the cables made of them are drawn in their place
+void editor_mode::cables_hide_lines(scenery_cable const &Lines)
+{
+	auto &state{m_cables};
+	if (auto const restored{state.restored.find(Lines.id)}; restored != state.restored.end())
+	{
+		for (auto const &live : restored->second)
+		{
+			scene::basic_region::editor_lines_place where;
+			where.section = live.section;
+			where.cell = live.cell;
+			where.slot = live.slot;
+			if (simulation::Region != nullptr)
+				simulation::Region->editor_lines(where, nullptr);
+		}
+		state.restored.erase(restored);
+		return;
+	}
+	cables_cut(Lines.chains);
+}
+
+// lines of a scenery file given back to it: drawn again, as lines of the editor's own, their geometry merged at the load being cut
+void editor_mode::cables_restore_lines(scenery_cable const &Lines)
+{
+	auto &state{m_cables};
+	if (false == Global.editor_session || simulation::Region == nullptr || state.restored.contains(Lines.id))
+		return;
+	auto &places{state.restored[Lines.id]};
+	for (auto const &chain : Lines.chains)
+	{
+		auto const lines{lines_of(chain, Lines.colour, Lines.width, Lines.range, Lines.range_min)};
+		auto const where{simulation::Region->editor_lines({}, &lines)};
+		cables_state::live_cable live;
+		live.section = where.section;
+		live.cell = where.cell;
+		live.slot = where.slot;
+		places.push_back(live);
+	}
 }

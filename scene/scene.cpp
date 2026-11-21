@@ -319,6 +319,67 @@ basic_cell::insert( lines_node Lines ) {
     m_lines.emplace_back( Lines );
 }
 
+// the editor: lines of its own in the cell, kept apart from the ones merged at the load
+int
+basic_cell::editor_lines( int Slot, lines_node const *Lines, gfx::geometrybank_handle const &Bank ) {
+
+    auto const own { Slot >= 0 && Slot < static_cast<int>( m_lines.size() ) && std::find( std::begin( m_editorlines ), std::end( m_editorlines ), Slot ) != std::end( m_editorlines ) };
+    if( Lines == nullptr ) {
+        if( own ) {
+            // the slot stays, empty: the others keep their places
+            auto empty { m_lines[ Slot ] };
+            empty.m_data.vertices.clear();
+            empty.update_geometry( Bank );
+            m_lines[ Slot ] = std::move( empty );
+        }
+        return -1;
+    }
+    auto lines { *Lines };
+    lines.origin( m_area.center );
+    if( own ) {
+        lines.m_data.geometry = m_lines[ Slot ].m_data.geometry;
+    }
+    else {
+        // a slot emptied before is used again
+        auto const free { std::find_if(
+            std::begin( m_editorlines ), std::end( m_editorlines ),
+            [ this ]( int const Index ) { return m_lines[ Index ].m_data.vertices.empty(); } ) };
+        if( free != std::end( m_editorlines ) ) {
+            Slot = *free;
+            lines.m_data.geometry = m_lines[ Slot ].m_data.geometry;
+        }
+        else {
+            Slot = static_cast<int>( m_lines.size() );
+            m_lines.emplace_back();
+            m_editorlines.push_back( Slot );
+        }
+    }
+    m_lines[ Slot ] = std::move( lines );
+    m_active = true;
+    if( m_geometrycreated ) {
+        m_lines[ Slot ].update_geometry( Bank );
+    }
+    return Slot;
+}
+
+// the editor: the lines between the ends of specified segments taken out of the ones merged at the load
+std::size_t
+basic_cell::cut_lines( std::vector<std::array<glm::dvec3, 2>> const &Segments, gfx::geometrybank_handle const &Bank ) {
+
+    std::size_t taken { 0 };
+    for( int index = 0; index < static_cast<int>( m_lines.size() ); ++index ) {
+        if( std::find( std::begin( m_editorlines ), std::end( m_editorlines ), index ) != std::end( m_editorlines ) ) { continue; }
+        auto &lines { m_lines[ index ] };
+        auto const cut { lines.cut( Segments, 0.01 ) };
+        if( cut == 0 ) { continue; }
+        taken += cut;
+        if( m_geometrycreated ) {
+            lines.update_geometry( Bank );
+        }
+    }
+    return taken;
+}
+
 // adds provided path to the cell
 void
 basic_cell::insert( TTrack *Path ) {
@@ -1424,6 +1485,48 @@ basic_region::insert( shape_node Shape, scratch_data &Scratchpad, bool const Tra
                 + " placed in location outside region bounds (" + to_string( shape.m_data.area.center ) + ")" );
         }
     }
+}
+
+// the editor: lines of its own put in the region, or changed, or taken out
+basic_region::editor_lines_place
+basic_region::editor_lines( editor_lines_place const &Place, lines_node const *Lines ) {
+
+    auto const bank = []( basic_section &Section ) {
+        // a section drawn already has its geometry made: the lines join it at once, else they're made with it
+        if( Section.m_geometrycreated && Section.m_geometrybank == null_handle ) {
+            Section.m_geometrybank = GfxRenderer->Create_Bank();
+        }
+        return Section.m_geometrycreated ? Section.m_geometrybank : gfx::geometrybank_handle{}; };
+    if( Lines == nullptr || Lines->data().vertices.empty() || false == point_inside( Lines->data().area.center ) ) {
+        if( Place.cell != nullptr && Place.section != nullptr ) {
+            Place.cell->editor_lines( Place.slot, nullptr, bank( *Place.section ) );
+        }
+        return {};
+    }
+    auto &section { this->section( Lines->data().area.center ) };
+    auto &cell { section.cell( Lines->data().area.center ) };
+    auto slot { Place.cell == &cell ? Place.slot : -1 };
+    if( Place.cell != nullptr && Place.cell != &cell && Place.section != nullptr ) {
+        // gone into another cell: out of the one it was in
+        Place.cell->editor_lines( Place.slot, nullptr, bank( *Place.section ) );
+    }
+    slot = cell.editor_lines( slot, Lines, bank( section ) );
+    return { &section, &cell, slot };
+}
+
+// the editor: the lines between the ends of specified segments taken out of the lines merged at the load
+std::size_t
+basic_region::cut_lines( glm::dvec3 const &Point, float const Radius, std::vector<std::array<glm::dvec3, 2>> const &Segments ) {
+
+    std::size_t taken { 0 };
+    for( auto *section : sections( Point, Radius ) ) {
+        if( section == nullptr ) { continue; }
+        auto const bank { section->m_geometrycreated ? section->m_geometrybank : gfx::geometrybank_handle{} };
+        for( auto &cell : section->m_cells ) {
+            taken += cell.cut_lines( Segments, bank );
+        }
+    }
+    return taken;
 }
 
 // inserts provided lines in the region

@@ -15324,3 +15324,60 @@ msgstr "Komplety z mniejszą liczbą punktów, wpisane w szablonach osobno, jak 
 
 msgid "No template of this model was found: the wires are led along the poles whose template (*.inc) is named as their model"
 msgstr "Nie znaleziono szablonu tego modelu: przewody prowadzi się po słupach, których szablon (*.inc) nazywa się tak jak ich model"
+
+msgid "Cables deleted: %zu; they go out of the scenery with the next save"
+msgstr "Usunięto kable: %zu; znikną ze scenerii przy następnym zapisie"
+
+msgid "Taken over: on save the lines go from their file to the file of the cables"
+msgstr "Przejęto: przy zapisie linie przeniosą się z ich pliku do pliku kabli"
+
+msgid "Click a cable in the view, or in the list, to change it; Shift+LMB or Shift and a drag select more"
+msgstr "Kliknij kabel w widoku albo na liście, żeby go zmienić; Shift+LPM albo Shift z przeciągnięciem zaznacza więcej"
+
+msgid "LMB on the poles, in any order (again: out of the list); they go along the line as they stand. The templates of the poles tell where the wires hang, in the block for the automatons of the wires (druty.exe); the wires are led along them as the points of each pole go across the line"
+msgstr "LPM na słupach, w dowolnej kolejności (ponownie: usuwa z listy); układają się wzdłuż linii tak, jak stoją. Szablony słupów mówią, gdzie wiszą przewody, w bloku dla automatów drutowania (druty.exe); przewody idą po nich tak, jak punkty każdego słupa układają się w poprzek linii"
+
+msgid "The models selected in the surroundings (F2) taken as the poles, each of them once; they go along the line as they stand"
+msgstr "Modele zaznaczone w Otoczeniu (F2) brane jako słupy, każdy raz; układają się wzdłuż linii tak, jak stoją"
+
+msgid "Cables selected: %zu"
+msgstr "Zaznaczone kable: %zu"
+
+msgid "%.1f m of cables in all"
+msgstr "Razem %.1f m kabli"
+
+msgid "The values differ between them: the ones of the first are shown, a value changed is given to all"
+msgstr "Wartości się różnią: widać te z pierwszego, zmieniona wartość trafia do wszystkich"
+
+msgid "Fly to##cables"
+msgstr "Leć do##cables"
+
+msgid "Delete all##cables"
+msgstr "Usuń wszystkie##cables"
+
+msgid "The model is bent along the track now: its handles move it, not the gizmo; Esc ends the editing, Ctrl+Z or Straighten makes it a plain model again"
+msgstr "Model jest teraz wygięty wzdłuż toru: przesuwają go jego uchwyty, nie gizmo; Esc kończy edycję, Ctrl+Z albo „Wyprostuj” robi z niego znów zwykły model"
+
+msgid "Straighten: a plain model again"
+msgstr "Wyprostuj: znów zwykły model"
+
+msgid "Bent, it's moved by its handles in the view, not by the gizmo; Esc or Done ends the editing"
+msgstr "Wygięty model przesuwa się uchwytami w widoku, nie gizmem; Esc albo Gotowe kończy edycję"
+
+msgid "The model is plain again: the gizmo moves it; Ctrl+Z bends it back"
+msgstr "Model jest znów zwykły: przesuwa go gizmo; Ctrl+Z wygina go z powrotem"
+
+msgid "Bending: %s   Esc or Done ends it   Ctrl+Z takes it back"
+msgstr "Wyginanie: %s   Esc albo Gotowe kończy   Ctrl+Z cofa"
+
+msgid "A model bent along the track"
+msgstr "Model wygięty wzdłuż toru"
+
+msgid "Click: the link copied"
+msgstr "Kliknięcie: kopiuje link"
+
+msgid "The model stands straight in the middle of where it was bent, turned along the track there; the gizmo moves it again. Ctrl+Z bends it back"
+msgstr "Model staje prosto w środku dawnego wygięcia, obrócony wzdłuż toru w tym miejscu; znów przesuwa go gizmo. Ctrl+Z wygina go z powrotem"
+
+msgid "A template bent along the track is made plain again by Ctrl+Z only"
+msgstr "Wygięty szablon da się wyprostować tylko przez Ctrl+Z"

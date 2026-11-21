@@ -116,6 +116,11 @@ class editor_ui : public ui_layer
 	{
 		m_bendexpand = true;
 	}
+	// a model bent along the track being edited: the Inspector shows its bending alone, at the top
+	void set_bend_active(std::function<bool()> Active)
+	{
+		m_bendactive = std::move(Active);
+	}
 	// actions of the file menu, performed by the editor mode
 	void set_file_actions(std::function<void()> Save, std::function<void()> Export);
 	void set_new_scenery(std::function<void()> New) { m_newscenery = std::move(New); }
@@ -276,6 +281,7 @@ class editor_ui : public ui_layer
 	std::function<void()> m_gizmooptions;
 	std::function<void()> m_arrayoptions;
 	std::function<void()> m_bendoptions;
+	std::function<bool()> m_bendactive;
 	bool m_bendexpand{false};
 	scene::basic_node *m_node{nullptr}; // currently bound scene node, if any
 	bool m_track{false};

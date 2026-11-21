@@ -12,6 +12,7 @@ http://mozilla.org/MPL/2.0/.
 #include "application/editoruilayer.h"
 #include "application/editorprojection.h"
 #include "application/editormodeshared.h"
+#include <numbers>
 #include "editor/editorFormat.hpp"
 #include "editor/editorGeometry.hpp"
 #include "editor/editorIncludeInfo.hpp"
@@ -1652,6 +1653,7 @@ void editor_mode::bend_selection()
 	tool.signature.clear();
 	tool.status = format(STR_C("%s bent along %.1f m of the track, Ctrl+Z takes it back"), source.file.c_str(), sweep->distance_at(sweep->end()) - sweep->distance_at(sweep->start()));
 	WriteLog("Editor: " + tool.status, logtype::generic);
+	ui()->set_status(STR("The model is bent along the track now: its handles move it, not the gizmo; Esc ends the editing, Ctrl+Z or Straighten makes it a plain model again"));
 }
 
 void editor_mode::restore_bend(EditorSnapshot &Snapshot, bool const Undo)
@@ -2218,7 +2220,7 @@ void editor_mode::render_bend()
 		auto const done{ImGui::Button(STR_C("Done"), ImVec2(half, ImGui::GetFrameHeight() * 1.3f))};
 		ImGui::PopStyleColor(2);
 		if (done)
-			tool.edited = nullptr;
+			bend_leave();
 		ImGui::SameLine();
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.18f, 0.15f, 1.0f));
 		auto const removed{ImGui::Button(STR_C("Delete"), ImVec2(-FLT_MIN, ImGui::GetFrameHeight() * 1.3f))};
@@ -2227,6 +2229,18 @@ void editor_mode::render_bend()
 		{
 			sweep_delete(*sweep);
 			tool.edited = nullptr;
+		}
+		// a model bent is made a plain one again, standing in the middle of where it was bent; a template only by Ctrl+Z
+		else if (tool.edited != nullptr)
+		{
+			auto const plain{tool.edited->definition().parameters.empty()};
+			ImGui::BeginDisabled(false == plain);
+			if (ImGui::Button(STR_C("Straighten: a plain model again"), ImVec2(-FLT_MIN, 0.0f)))
+				bend_straighten();
+			ImGui::EndDisabled();
+			item_tooltip(plain ? "The model stands straight in the middle of where it was bent, turned along the track there; the gizmo moves it again. Ctrl+Z bends it back" :
+			                     "A template bent along the track is made plain again by Ctrl+Z only");
+			ImGui::TextDisabled("%s", STR_C("Bent, it's moved by its handles in the view, not by the gizmo; Esc or Done ends the editing"));
 		}
 	}
 	else
@@ -2647,4 +2661,59 @@ bool editor_mode::bend_shortcut()
 	bend_selection();
 	ui()->expand_bend();
 	return true;
+}
+
+// the editing of a model bent along the track ended: the handles go, the selection works as before
+void editor_mode::bend_leave()
+{
+	m_bend.edited = nullptr;
+	m_bend.picking = false;
+	m_bend.dragging = 0;
+}
+
+// the model bent made a plain model again: of the same file, skin and scale, standing in the middle of where it was bent, turned
+// along the track there. One step of the history, bending it back on Ctrl+Z
+void editor_mode::bend_straighten()
+{
+	auto *sweep{m_bend.edited};
+	if (sweep == nullptr || sweep->m_editorremoved || false == sweep->definition().parameters.empty())
+		return;
+	auto const &state{sweep->definition()};
+	auto const at{sweep->frame_at(0.5 * (sweep->start() + sweep->end()))};
+	auto const position{at.position + at.left * (state.lateral + sweep->setback(at)) + at.up * (state.height + sweep->rise(at))};
+	// the model laid along z has z along the track, the one laid along x has x
+	auto yaw{state.along_x ? std::atan2(-at.forward.z, at.forward.x) : std::atan2(at.forward.x, at.forward.z)};
+	if (state.flip)
+		yaw += std::numbers::pi;
+	EditorSnapshot snap;
+	snap.action = EditorSnapshot::Action::Bend;
+	snap.straightened = true;
+	snap.sweeps_toggled.push_back(sweep);
+	snap.layer = sweep->layer();
+	snap.serialized = "node -1 0 none model 0 0 0 0 " + state.model + ' ' + (state.skin.empty() ? std::string{"none"} : state.skin) + " endmodel";
+	snap.position = position;
+	snap.rotation = glm::vec3{0.0f, static_cast<float>(glm::degrees(yaw)), 0.0f};
+	snap.scale = glm::vec3{state.scale};
+	// as the undoing of a bending: the bent model hidden, the plain one made
+	restore_bend(snap, true);
+	trim_history();
+	m_history.push_back(std::move(snap));
+	g_redo.clear();
+	bend_leave();
+	ui()->set_status(STR("The model is plain again: the gizmo moves it; Ctrl+Z bends it back"));
+}
+
+// what's being edited, at the top of the view: a model bent isn't a node the usual tools work on
+void editor_mode::draw_bend_banner()
+{
+	auto const *sweep{m_bend.edited};
+	if (sweep == nullptr || sweep->m_editorremoved)
+		return;
+	auto const text{format(STR_C("Bending: %s   Esc or Done ends it   Ctrl+Z takes it back"), sweep->name().c_str())};
+	auto *drawlist{ImGui::GetForegroundDrawList(ImGui::GetMainViewport())};
+	auto const size{ImGui::CalcTextSize(text.c_str())};
+	auto const &display{ImGui::GetIO().DisplaySize};
+	ImVec2 const at{0.5f * (display.x - size.x), ImGui::GetFrameHeight() * 2.6f};
+	drawlist->AddRectFilled(ImVec2(at.x - 10.0f, at.y - 5.0f), ImVec2(at.x + size.x + 10.0f, at.y + size.y + 5.0f), IM_COL32(40, 30, 10, 210), 5.0f);
+	drawlist->AddText(at, IM_COL32(255, 200, 90, 255), text.c_str());
 }

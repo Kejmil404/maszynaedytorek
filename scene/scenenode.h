@@ -218,6 +218,7 @@ shape_node::data() const {
 class lines_node
 {
     friend class basic_region; // region might want to modify node content when it's being inserted
+    friend class basic_cell; // the editor changes lines of its own in the cell they're in
 
 public:
 // types
@@ -273,6 +274,16 @@ public:
     // data access
     linesnode_data const &
         data() const;
+    // the editor, with the vertices kept: the bounding area of the vertices held
+    void
+        bound();
+    // the editor, with the vertices kept: the renderable version made again from the vertices held, in its chunk of geometry, or in
+    // a new one of specified bank
+    void
+        update_geometry( gfx::geometrybank_handle const &Bank );
+    // the editor, with the vertices kept: takes out the lines between the ends of specified segments. returns: how many were taken
+    std::size_t
+        cut( std::vector<std::array<glm::dvec3, 2>> const &Segments, double const Tolerance );
 
 private:
 // members

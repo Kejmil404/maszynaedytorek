@@ -8,6 +8,7 @@ http://mozilla.org/MPL/2.0/.
 */
 
 #include "stdafx.h"
+#include "version_info.h"
 #include "application/editoruilayer.h"
 
 #include "utilities/Globals.h"
@@ -822,6 +823,14 @@ void editor_ui::render_inspector()
 			ImGui::End();
 			return;
 		}
+		// a model bent along the track isn't a node of the kind the properties show: its bending is what it has
+		if (m_bendactive && m_bendactive() && m_bendoptions)
+		{
+			ImGui::SeparatorText(STR_C("A model bent along the track"));
+			m_bendoptions();
+			ImGui::End();
+			return;
+		}
 		if (ImGui::CollapsingHeader(STR_C("Node properties"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			ImGui::Indent();
@@ -1017,6 +1026,25 @@ void editor_ui::render_menu_contents()
 
 	if (m_menuoptions)
 		m_menuoptions();
+
+	// the build, at the right end of the bar: the commit it was made of and its date; a click copies the link to the commit
+	auto const build{std::string{GIT_HASH} + ", " + SRC_SHORT_DATE};
+	auto const width{ImGui::CalcTextSize(build.c_str()).x + ImGui::GetStyle().ItemSpacing.x * 2.0f};
+	if (ImGui::GetCursorPosX() + width < ImGui::GetWindowWidth())
+	{
+		ImGui::SameLine(ImGui::GetWindowWidth() - width);
+		ImGui::TextDisabled("%s", build.c_str());
+		if (ImGui::IsItemHovered())
+		{
+			std::string hash{GIT_HASH};
+			if (auto const dash{hash.find('-')}; dash != std::string::npos)
+				hash.erase(dash);
+			auto const link{"https://github.com/Kejmil404/maszynaedytorek/commit/" + hash};
+			ImGui::SetTooltip("%s\n%s", link.c_str(), STR_C("Click: the link copied"));
+			if (ImGui::IsItemClicked())
+				ImGui::SetClipboardText(link.c_str());
+		}
+	}
 }
 
 // the tools of the editor mode, in the tools menu after the common ones (logging, screenshot)

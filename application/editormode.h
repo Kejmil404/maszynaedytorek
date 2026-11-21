@@ -70,6 +70,11 @@ http://mozilla.org/MPL/2.0/.
 #include <vector>
 
 class TAnimModel;
+namespace scene
+{
+class basic_section;
+class basic_cell;
+} // namespace scene
 // a tool of a field of work of the editor, a button in the toolbar and over the 3d view
 struct editor_tool_button;
 class TTrack;
@@ -292,6 +297,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		// direct pointer to node when available; used for in-memory undo/redo lookup
 		scene::basic_node *node_ptr{nullptr};
 		std::string serialized;         // full text for recreate (used for Add/Delete)
+		bool straightened{false}; // Action::Bend: the bent model made a plain model again, rather than a model bent
 		glm::dvec3 position{0.0, 0.0, 0.0};
 		glm::vec3 rotation{0.0f, 0.0f, 0.0f};
 		glm::vec3 scale{1.0f, 1.0f, 1.0f};
@@ -1303,7 +1309,11 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::vector<cable> cables;
 		std::vector<std::uint32_t> taken;
 		int selected{-1};
+		std::vector<int> also; // the other cables selected with it, by Shift
 		int point{-1}; // of the cable selected
+		// Shift and a drag in the view: the cables in the box drawn are selected
+		bool boxing{false};
+		glm::vec2 box_from{0.0f};
 		bool laying{false}; // the tool chosen is Lay: a click adds a point of the cable laid
 		// the tool chosen is Wiring: the poles clicked one after another, the wires led along them by the blocks of their templates
 		bool wiring{false};
@@ -1337,6 +1347,21 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		editor_mode_cables last;
 		std::optional<editor_mode_cables> base;
 		std::string status;
+		// the cables as the game draws them while the editor runs: lines of the editor's own in the cells of the region, each made
+		// again when its cable changes. Off where the scenery wasn't opened for editing: the overlay draws the cables then
+		struct live_cable
+		{
+			scene::basic_section *section{nullptr};
+			scene::basic_cell *cell{nullptr};
+			int slot{-1};
+			editor_mode_cable made; // what it was made of
+		};
+		std::vector<live_cable> live;
+		bool live_on{false};
+		bool live_cut{false}; // the cables read from the file of the editor taken out of the lines merged at the load
+		// the lines of the scenery files given back to them after being taken over: drawn as lines of the editor's own, as their
+		// geometry merged at the load was cut
+		std::map<std::uint32_t, std::vector<live_cable>> restored;
 	};
 	cables_state m_cables;
 	// the field of work of the cables (application/editormodecables.cpp)
@@ -1355,12 +1380,26 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void cables_cancel();
 	void cables_delete();
 	void cables_deselect();
+	// the cables selected: the one the point gizmo is on, then the others
+	std::vector<int> cables_chosen() const;
+	void cables_toggle(int const Index);
+	void cables_box_finish();
+	void render_cables_many(std::vector<int> const &Chosen);
 	void cables_take_over(scenery_cable &Lines);
 	void cables_snap();
 	void cables_track_changes();
 	void restore_cables(EditorSnapshot &Snapshot);
+	// the bending of a model (B): the model bent made a plain one again, the banner of the editing of one
+	void bend_straighten();
+	void bend_leave();
+	void draw_bend_banner();
 	// after a save: the lines taken over are gone from their files, the steps of the history which would give them back go too
 	void cables_saved();
+	// the cables drawn by the game as they are: the ones changed made again, the lines they took the place of taken out
+	void cables_live();
+	void cables_cut(std::vector<std::vector<glm::dvec3>> const &Chains);
+	void cables_restore_lines(scenery_cable const &Lines);
+	void cables_hide_lines(scenery_cable const &Lines);
 	// the wiring (application/editormodecables.cpp)
 	void wiring_pick(TAnimModel const *Model);
 	bool wiring_pole(TAnimModel const &Model, editor_mode_wiring_pole &Pole);
