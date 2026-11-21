@@ -727,7 +727,7 @@ lines_node::cut( std::vector<std::array<glm::dvec3, 2>> const &Segments, double 
 
     if( m_data.vertices.size() < 2 || Segments.empty() ) { return 0; }
     auto const tolerance2 { Tolerance * Tolerance };
-    auto const near = [ tolerance2 ]( glm::dvec3 const &Left, glm::dvec3 const &Right ) {
+    auto const close_to = [ tolerance2 ]( glm::dvec3 const &Left, glm::dvec3 const &Right ) {
         return glm::length2( Left - Right ) <= tolerance2; };
     std::vector<world_vertex> kept;
     kept.reserve( m_data.vertices.size() );
@@ -738,8 +738,8 @@ lines_node::cut( std::vector<std::array<glm::dvec3, 2>> const &Segments, double 
         auto const matched { std::any_of(
             std::begin( Segments ), std::end( Segments ),
             [ & ]( std::array<glm::dvec3, 2> const &Segment ) {
-                return ( near( from, Segment[ 0 ] ) && near( to, Segment[ 1 ] ) )
-                    || ( near( from, Segment[ 1 ] ) && near( to, Segment[ 0 ] ) ); } ) };
+                return ( close_to( from, Segment[ 0 ] ) && close_to( to, Segment[ 1 ] ) )
+                    || ( close_to( from, Segment[ 1 ] ) && close_to( to, Segment[ 0 ] ) ); } ) };
         if( matched ) {
             ++taken;
             continue;
