@@ -8,9 +8,9 @@ http://mozilla.org/MPL/2.0/.
 */
 
 // the field of work of the cables (experimental, F7): the lines of the scenery, power lines and the like. A cable of the editor is
-// hung between its points and sags in each span between them; it's written on each save as a plain line_strip, of the colour and
-// the width in pixels it's given, to an include of the editor's own, <scenery>_kable.scm, with a line of a comment before it that
-// keeps what the editor reads back. The lines of the scenery files are read from them and can be taken over: they become cables of
+// hung between its points and sags in each span between them; it's written on each save as plain line_strips, one for each span or
+// piece of a long one, of the colour and the width in pixels it's given, to an include of the editor's own, <scenery>_kable.scm,
+// with a line of a comment before them that keeps what the editor reads back. The lines of the scenery files are read from them and can be taken over: they become cables of
 // the editor, and their definitions go from their files on save. The game keeps the lines in its binary terrain file too, so that
 // file goes when they change, made again on the next load
 
@@ -40,6 +40,7 @@ http://mozilla.org/MPL/2.0/.
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -84,6 +85,30 @@ bool press_in_view()
 	return false == ImGui::GetIO().MouseDownOwned[0];
 }
 
+// m: the longest piece of a cable written as one node of lines. The game puts a node of lines in the cell of the middle of its
+// points and leaves the cell out of the view by the bounds of the cell, which lines don't widen: a long node vanished whole when
+// the cell of its middle went out of the view, and its range counts from that middle too
+double constexpr kPieceLength{50.0};
+
+float sag_of(editor_mode_cable const &Cable, std::size_t const Span)
+{
+	return Span < Cable.sags.size() && Cable.sags[Span] >= 0.0f ? Cable.sags[Span] : Cable.sag;
+}
+
+// the segments a span is drawn with
+int steps_of(editor_mode_cable const &Cable, float const Sag)
+{
+	return Sag > 0.0f ? std::clamp(Cable.segments, 1, 64) : 1;
+}
+
+// the point of the span from From to To at T of its length, sagging as a parabola, the deepest at its middle
+glm::dvec3 sagged(glm::dvec3 const &From, glm::dvec3 const &To, float const Sag, double const T)
+{
+	auto point{glm::mix(From, To, T)};
+	point.y -= Sag * 4.0 * T * (1.0 - T);
+	return point;
+}
+
 // the points the game draws the cable with: each span sagging as a parabola, the deepest at its middle
 std::vector<glm::dvec3> drawn_points(editor_mode_cable const &Cable)
 {
@@ -94,18 +119,45 @@ std::vector<glm::dvec3> drawn_points(editor_mode_cable const &Cable)
 	{
 		auto const &from{Cable.points[span]};
 		auto const &to{Cable.points[span + 1]};
-		auto const sag{span < Cable.sags.size() && Cable.sags[span] >= 0.0f ? Cable.sags[span] : Cable.sag};
-		auto const pieces{sag > 0.0f ? std::clamp(Cable.segments, 1, 64) : 1};
-		for (int piece = 0; piece < pieces; ++piece)
-		{
-			auto const t{static_cast<double>(piece) / pieces};
-			auto point{glm::mix(from, to, t)};
-			point.y -= sag * 4.0 * t * (1.0 - t);
-			points.push_back(point);
-		}
+		auto const sag{sag_of(Cable, span)};
+		auto const steps{steps_of(Cable, sag)};
+		for (int step = 0; step < steps; ++step)
+			points.push_back(sagged(from, to, sag, static_cast<double>(step) / steps));
 	}
 	points.push_back(Cable.points.back());
 	return points;
+}
+
+// the piece of a span from Begin to End of its length: its ends and the points of the span drawn between them
+std::vector<glm::dvec3> piece_of(glm::dvec3 const &From, glm::dvec3 const &To, float const Sag, int const Steps, double const Begin, double const End)
+{
+	std::vector<glm::dvec3> piece{sagged(From, To, Sag, Begin)};
+	for (int step = 1; step < Steps; ++step)
+	{
+		auto const t{static_cast<double>(step) / Steps};
+		if (t > Begin + 1e-9 && t < End - 1e-9)
+			piece.push_back(sagged(From, To, Sag, t));
+	}
+	piece.push_back(sagged(From, To, Sag, End));
+	return piece;
+}
+
+// the cable as it's written and drawn by the game: a strip for each span, a long span cut into pieces of at most kPieceLength,
+// so each is in the cell where it hangs, the way druty.exe writes a node for each span
+std::vector<std::vector<glm::dvec3>> drawn_pieces(editor_mode_cable const &Cable)
+{
+	std::vector<std::vector<glm::dvec3>> pieces;
+	for (std::size_t span = 0; span + 1 < Cable.points.size(); ++span)
+	{
+		auto const &from{Cable.points[span]};
+		auto const &to{Cable.points[span + 1]};
+		auto const sag{sag_of(Cable, span)};
+		auto const steps{steps_of(Cable, sag)};
+		auto const parts{std::max(1, static_cast<int>(std::ceil(glm::distance(from, to) / kPieceLength)))};
+		for (int part = 0; part < parts; ++part)
+			pieces.push_back(piece_of(from, to, sag, steps, static_cast<double>(part) / parts, static_cast<double>(part + 1) / parts));
+	}
+	return pieces;
 }
 
 std::string point_text(glm::dvec3 const &Point)
@@ -131,10 +183,15 @@ std::string cable_text(editor_mode_cable const &Cable)
 		return {};
 	std::string text{cable_line(Cable)};
 	auto const range{Cable.range > 0.0f ? format("%.1f", Cable.range) : std::string{"-1"}};
-	text += "node " + range + ' ' + format("%.1f", Cable.range_min) + ' ' + (Cable.name.empty() ? std::string{"none"} : Cable.name) + " line_strip " + format("%d %d %d %.2f", Cable.colour[0], Cable.colour[1], Cable.colour[2], Cable.width) + "\r\n";
-	for (auto const &point : drawn_points(Cable))
-		text += point_text(point) + "\r\n";
-	return text + "endline\r\n";
+	auto const head{"node " + range + ' ' + format("%.1f", Cable.range_min) + ' ' + (Cable.name.empty() ? std::string{"none"} : Cable.name) + " line_strip " + format("%d %d %d %.2f", Cable.colour[0], Cable.colour[1], Cable.colour[2], Cable.width) + "\r\n"};
+	for (auto const &piece : drawn_pieces(Cable))
+	{
+		text += head;
+		for (auto const &point : piece)
+			text += point_text(point) + "\r\n";
+		text += "endline\r\n";
+	}
+	return text;
 }
 
 glm::dvec3 point_of(std::string_view const Text)
@@ -1810,43 +1867,66 @@ void editor_mode::cables_live()
 	if (false == state.live_cut)
 	{
 		state.live_cut = true;
+		// a file written before the cables were cut into pieces has each as a single strip
 		std::vector<std::vector<glm::dvec3>> chains;
 		for (auto const &each : state.cables)
+		{
 			chains.push_back(drawn_points(each));
+			auto pieces{drawn_pieces(each)};
+			std::ranges::move(pieces, std::back_inserter(chains));
+		}
 		cables_cut(chains);
 	}
-	auto const place = [](cables_state::live_cable const &Live) {
-		scene::basic_region::editor_lines_place where;
-		where.section = Live.section;
-		where.cell = Live.cell;
-		where.slot = Live.slot;
-		return where;
-	};
-	auto const store = [](cables_state::live_cable &Live, scene::basic_region::editor_lines_place const &Where) {
-		Live.section = Where.section;
-		Live.cell = Where.cell;
-		Live.slot = Where.slot;
-	};
 	for (std::size_t index = 0; index < state.cables.size(); ++index)
 	{
 		if (index >= state.live.size())
 			state.live.emplace_back();
 		auto &live{state.live[index]};
 		auto const &each{state.cables[index]};
-		if (live.cell != nullptr && live.made == each)
+		if (false == live.pieces.empty() && live.made == each)
 			continue;
 		live.made = each;
-		auto const lines{lines_of(drawn_points(each), each.colour, each.width, each.range, each.range_min)};
-		store(live, simulation::Region->editor_lines(place(live), each.points.size() >= 2 ? &lines : nullptr));
+		cables_place(live, drawn_pieces(each), each);
 		// a cable without its lines is made again when it changes
-		if (live.cell == nullptr)
+		if (live.pieces.empty())
 			live.made = {};
 	}
 	while (state.live.size() > state.cables.size())
 	{
-		simulation::Region->editor_lines(place(state.live.back()), nullptr);
+		cables_place(state.live.back(), {}, state.live.back().made);
 		state.live.pop_back();
 	}
+}
+
+// the pieces of a cable put in the cells of the region where they hang, as lines of the editor's own, in the places they had
+// before; the places left over emptied
+void editor_mode::cables_place(cables_state::live_wire &Live, std::vector<std::vector<glm::dvec3>> const &Pieces, editor_mode_cable const &Cable)
+{
+	auto const place = [](cables_state::live_cable const &Piece) {
+		scene::basic_region::editor_lines_place where;
+		where.section = Piece.section;
+		where.cell = Piece.cell;
+		where.slot = Piece.slot;
+		return where;
+	};
+	std::vector<cables_state::live_cable> placed;
+	for (std::size_t index = 0; index < Pieces.size(); ++index)
+	{
+		auto const lines{lines_of(Pieces[index], Cable.colour, Cable.width, Cable.range, Cable.range_min)};
+		auto const before{index < Live.pieces.size() ? place(Live.pieces[index]) : scene::basic_region::editor_lines_place{}};
+		auto const where{simulation::Region->editor_lines(before, &lines)};
+		// a piece outside of the region isn't drawn
+		if (where.cell == nullptr)
+			continue;
+		cables_state::live_cable piece;
+		piece.section = where.section;
+		piece.cell = where.cell;
+		piece.slot = where.slot;
+		placed.push_back(piece);
+	}
+	for (std::size_t index = Pieces.size(); index < Live.pieces.size(); ++index)
+		simulation::Region->editor_lines(place(Live.pieces[index]), nullptr);
+	Live.pieces = std::move(placed);
 }
 
 void editor_mode::cables_cut(std::vector<std::vector<glm::dvec3>> const &Chains)

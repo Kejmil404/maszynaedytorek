@@ -1354,9 +1354,14 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 			scene::basic_section *section{nullptr};
 			scene::basic_cell *cell{nullptr};
 			int slot{-1};
+		};
+		// a cable drawn by the game: its pieces, as they're written, each in the cell where it hangs
+		struct live_wire
+		{
+			std::vector<live_cable> pieces;
 			editor_mode_cable made; // what it was made of
 		};
-		std::vector<live_cable> live;
+		std::vector<live_wire> live;
 		bool live_on{false};
 		bool live_cut{false}; // the cables read from the file of the editor taken out of the lines merged at the load
 		// the lines of the scenery files given back to them after being taken over: drawn as lines of the editor's own, as their
@@ -1397,6 +1402,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void cables_saved();
 	// the cables drawn by the game as they are: the ones changed made again, the lines they took the place of taken out
 	void cables_live();
+	void cables_place(cables_state::live_wire &Live, std::vector<std::vector<glm::dvec3>> const &Pieces, editor_mode_cable const &Cable);
 	void cables_cut(std::vector<std::vector<glm::dvec3>> const &Chains);
 	void cables_restore_lines(scenery_cable const &Lines);
 	void cables_hide_lines(scenery_cable const &Lines);

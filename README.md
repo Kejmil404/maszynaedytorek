@@ -51,6 +51,7 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 - Zakładka Kable (F7): prowadzenie kabli (`line_strip`) ze zwisem przęseł, przyciąganie do punktów modeli i innych kabli, edycja punktów gizmem, przejmowanie do edycji linii z plików scenerii.
 - Drutowanie: przewody prowadzone automatycznie po kolejno wskazanych słupach, według bloku dla druty.exe z ich plików .inc, z losowym zwisem przęseł w zadanym zakresie.
 - Kable widoczne na żywo w scenerii podczas edycji; zaznaczanie kilku kabli (Shift+LPM, Shift i prostokąt) ze wspólną edycją.
+- Kable zapisywane jako osobny węzeł na każde przęsło (długie przęsła cięte na kawałki do 50 m), tak jak robi to druty.exe: długie kable nie znikają już zależnie od kąta kamery.
 
 
 ## Table of Contents
