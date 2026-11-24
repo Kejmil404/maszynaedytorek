@@ -655,10 +655,19 @@ void editor_ui::render_()
 				label = std::string{STR_C("Selected:")} + " " + (m_node->name().empty() ? std::string{STR_C("(no name)")} : m_node->name());
 			auto const spacing{ImGui::GetStyle().ItemSpacing.x};
 			auto const selected{label.empty() ? 0.0f : ImGui::CalcTextSize(label.c_str()).x + spacing * 2.0f};
-			if (false == m_autosave.empty())
+			// a filter of the selection left on would make some models seem not to get selected
+			std::string notes{m_autosave};
+			if (EditorSettings.select_filter() && m_workspace == workspace::none && mode() == nodebank_panel::MODIFY)
 			{
-				ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - selected - ImGui::CalcTextSize(m_autosave.c_str()).x - spacing * (label.empty() ? 2.0f : 4.0f)));
-				ImGui::TextDisabled("%s", m_autosave.c_str());
+				std::string filter{STR_C("Selection filter on")};
+				if (false == notes.empty())
+					filter += "   ";
+				notes = filter + notes;
+			}
+			if (false == notes.empty())
+			{
+				ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - selected - ImGui::CalcTextSize(notes.c_str()).x - spacing * (label.empty() ? 2.0f : 4.0f)));
+				ImGui::TextDisabled("%s", notes.c_str());
 			}
 			if (false == label.empty())
 			{
@@ -699,6 +708,7 @@ void editor_ui::render_mode_options(nodebank_panel::edit_mode const Mode)
 	{
 	case nodebank_panel::MODIFY:
 		ImGui::TextDisabled(STR_C("LMB: select node   F: focus   End: drop to ground   Del: delete"));
+		m_nodebankpanel.render_select_filter();
 		break;
 	case nodebank_panel::COPY:
 		ImGui::TextDisabled(STR_C("LMB: copy the clicked model to the node bank"));

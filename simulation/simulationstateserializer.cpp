@@ -189,6 +189,25 @@ state_serializer::deserialize_continue(std::shared_ptr<deserializer_state> state
     scene::Groups.close();
     scene::Layers.close();
 
+	if( true == Global.editor_session
+	 && true == state->scratchpad.binary.terrain ) {
+		// the lines of the text were skipped, the binary terrain had them: the editor tells those it adds don't show until that's made again
+		auto const &binary { state->scratchpad.binary };
+		std::vector<std::string> files;
+		if( true == binary.terrain_included ) {
+			files = binary.terrain_files;
+		}
+		else {
+			auto name { state->scenariofile };
+			while( false == name.empty() && name.front() == '$' ) {
+				name.erase( 0, 1 );
+			}
+			erase_extension( name );
+			files.emplace_back( name + ".sbt" );
+		}
+		scene::Layers.binary_lines( std::move( files ), binary.terrain_included );
+	}
+
 	scene::Groups.update_map();
 	Region->create_map_geometry();
 

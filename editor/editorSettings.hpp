@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <map>
+#include <set>
 #include <optional>
 #include <string>
 #include <utility>
@@ -84,6 +85,16 @@ public:
 	bool experimental() const { return m_experimental; }
 	void experimental(bool Experimental) { m_experimental = Experimental; }
 	// the scenery saved by itself every so many minutes while it has changes not saved; off unless turned on
+	// the filter of the selection in the surroundings: on, the groups of the node bank whose models are left out, and whether the
+	// models outside of the node bank and the nodes other than models get selected
+	bool select_filter() const { return m_select_filter; }
+	void select_filter(bool const Filter) { m_select_filter = Filter; }
+	std::set<std::string> &select_filter_off() { return m_select_filter_off; }
+	std::set<std::string> const &select_filter_off() const { return m_select_filter_off; }
+	bool select_filter_unbanked() const { return m_select_filter_unbanked; }
+	void select_filter_unbanked(bool const Select) { m_select_filter_unbanked = Select; }
+	bool select_filter_other() const { return m_select_filter_other; }
+	void select_filter_other(bool const Select) { m_select_filter_other = Select; }
 	bool autosave() const { return m_autosave; }
 	void autosave(bool Autosave) { m_autosave = Autosave; }
 	int autosave_minutes() const { return m_autosave_minutes; }
@@ -148,6 +159,10 @@ private:
 	float m_panel_brightness{0.0f};
 	float m_panel_transparency{0.0f};
 	bool m_experimental{false};
+	bool m_select_filter{false};
+	std::set<std::string> m_select_filter_off;
+	bool m_select_filter_unbanked{true};
+	bool m_select_filter_other{true};
 	bool m_autosave{false};
 	int m_autosave_minutes{10};
 	bool m_first_steps{true};

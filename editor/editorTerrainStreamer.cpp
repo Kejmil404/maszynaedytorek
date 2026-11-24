@@ -1296,6 +1296,32 @@ bool terrain_streamer::paint(double X, double Z, double Radius, double Strength,
 	});
 }
 
+int terrain_streamer::layer_at(double X, double Z)
+{
+	glm::dvec2 const point{X, Z};
+	auto const chunks{chunks_in(point, point, false)};
+	if (chunks.empty())
+		return -1;
+	auto const &data{chunks.front()->data()};
+	if (data.paint <= 0)
+		return data.layers[0] == heightmap::no_layer ? -1 : static_cast<int>(data.layers[0]);
+	auto const step{heightmap::chunk_size / data.paint};
+	auto const low{data.corner()};
+	auto const ix{std::clamp(static_cast<int>(std::lround((X - low.x) / step)), 0, data.paint)};
+	auto const iz{std::clamp(static_cast<int>(std::lround((Z - low.y) / step)), 0, data.paint)};
+	int found{-1};
+	int most{-1};
+	for (std::size_t slot = 0; slot < data.layer_count(); ++slot)
+	{
+		if (auto const weight{static_cast<int>(data.weight(slot, ix, iz))}; weight > most)
+		{
+			most = weight;
+			found = static_cast<int>(data.layers[slot]);
+		}
+	}
+	return found;
+}
+
 bool terrain_streamer::fill(std::vector<glm::dvec2> const &Outline, double Feather, std::uint16_t Layer, double Strength)
 {
 	if (Outline.size() < 3 || Strength <= 0.0)

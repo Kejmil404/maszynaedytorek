@@ -8,8 +8,8 @@ http://mozilla.org/MPL/2.0/.
 */
 
 // the field of work of the cables (experimental, F7): the lines of the scenery, power lines and the like. A cable of the editor is
-// hung between its points and sags in each span between them; it's written on each save as plain line_strips, one for each span or
-// piece of a long one, of the colour and the width in pixels it's given, to an include of the editor's own, <scenery>_kable.scm,
+// hung between its points and sags in each span between them; it's written on each save as plain lines, a pair of ends for each
+// segment, a node for each span or piece of a long one, of the colour and the width in pixels it's given, to an include of the editor's own, <scenery>_kable.scm,
 // with a line of a comment before them that keeps what the editor reads back. The lines of the scenery files are read from them and can be taken over: they become cables of
 // the editor, and their definitions go from their files on save. The game keeps the lines in its binary terrain file too, so that
 // file goes when they change, made again on the next load
@@ -83,6 +83,28 @@ std::string cables_file()
 bool press_in_view()
 {
 	return false == ImGui::GetIO().MouseDownOwned[0];
+}
+
+// a scenery whose lines come from a binary terrain file skips the lines of its text files, the cables of the editor among them
+void binary_lines_notice()
+{
+	auto const &files{scene::Layers.binary_lines()};
+	if (files.empty())
+		return;
+	std::string names;
+	for (auto const &file : files)
+	{
+		if (false == names.empty())
+			names += ", ";
+		names += file;
+	}
+	ImVec4 constexpr warning{1.0f, 0.75f, 0.35f, 1.0f};
+	ImGui::PushTextWrapPos(0.0f);
+	if (scene::Layers.binary_lines_included())
+		ImGui::TextColored(warning, STR_C("The lines of this scenery come from %s, named by its terrain directive: the game, the release as well, skips the lines of the text files, the cables among them, until that file is made again out of the text of the scenery"), names.c_str());
+	else
+		ImGui::TextColored(warning, STR_C("The lines of this scenery were loaded from %s: the game skips the lines of the text files while it's there. A save with the cables changed removes it, and the game makes it again on the next load, with the cables"), names.c_str());
+	ImGui::PopTextWrapPos();
 }
 
 // m: the longest piece of a cable written as one node of lines. The game puts a node of lines in the cell of the middle of its
@@ -183,12 +205,13 @@ std::string cable_text(editor_mode_cable const &Cable)
 		return {};
 	std::string text{cable_line(Cable)};
 	auto const range{Cable.range > 0.0f ? format("%.1f", Cable.range) : std::string{"-1"}};
-	auto const head{"node " + range + ' ' + format("%.1f", Cable.range_min) + ' ' + (Cable.name.empty() ? std::string{"none"} : Cable.name) + " line_strip " + format("%d %d %d %.2f", Cable.colour[0], Cable.colour[1], Cable.colour[2], Cable.width) + "\r\n"};
+	auto const head{"node " + range + ' ' + format("%.1f", Cable.range_min) + ' ' + (Cable.name.empty() ? std::string{"none"} : Cable.name) + " lines " + format("%d %d %d %.2f", Cable.colour[0], Cable.colour[1], Cable.colour[2], Cable.width) + "\r\n"};
+	// each segment as a pair of its ends, as the sceneries have their lines
 	for (auto const &piece : drawn_pieces(Cable))
 	{
 		text += head;
-		for (auto const &point : piece)
-			text += point_text(point) + "\r\n";
+		for (std::size_t point = 0; point + 1 < piece.size(); ++point)
+			text += point_text(piece[point]) + ' ' + point_text(piece[point + 1]) + "\r\n";
 		text += "endline\r\n";
 	}
 	return text;
@@ -1136,6 +1159,7 @@ void editor_mode::render_cables_tool_options()
 {
 	auto &state{m_cables};
 	cables_load();
+	binary_lines_notice();
 	if (state.wiring)
 		render_wiring_options();
 	else if (state.laying)

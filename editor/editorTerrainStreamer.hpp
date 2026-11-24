@@ -119,6 +119,8 @@ class terrain_streamer
 	std::size_t touched_up() const;
 	// paints the material of the palette entry Layer within Radius of (X,Z), Strength (0..1) of the way at the centre
 	bool paint(double X, double Z, double Radius, double Strength, std::uint16_t Layer);
+	// the entry of the palette covering the most of the paint sample nearest to (X,Z), -1 where no chunk of the terrain is loaded there
+	int layer_at(double X, double Z);
 	// the painted materials taken away under the brush, given back to the first material of each chunk; Only: just that entry of
 	// the palette, -1 all of them
 	bool erase(double X, double Z, double Radius, double Strength, int Only);

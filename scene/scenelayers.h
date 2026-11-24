@@ -304,6 +304,21 @@ class node_layers
 	{
 		m_shapeserased = true;
 	}
+	// the binary terrain files the lines of the scenery were loaded from instead of its text. Included: they're files named by
+	// terrain directives, not the default one the scenery gets made of all its text
+	void binary_lines(std::vector<std::string> Files, bool const Included)
+	{
+		m_binarylines = std::move(Files);
+		m_binarylinesincluded = Included;
+	}
+	std::vector<std::string> const &binary_lines() const
+	{
+		return m_binarylines;
+	}
+	bool binary_lines_included() const
+	{
+		return m_binarylinesincluded;
+	}
 	// drops the definitions of the shapes of specified materials from the writable layer files on save; only from specified layers, if given.
 	// returns: amount of the shapes to drop, and of the ones which stay as their files can't be rewritten
 	std::pair<std::size_t, std::size_t> erase_shapes(std::set<material_handle> const &Materials, std::set<layer_handle> const *Layers = nullptr);
@@ -421,6 +436,8 @@ class node_layers
 	bool m_shapeserased{false}; // the binary terrain file holds shapes which the save drops
 	std::vector<lines_source> m_lines;
 	std::uint32_t m_linesid{0};
+	std::vector<std::string> m_binarylines; // binary terrain files the lines came from, empty where they came from the text
+	bool m_binarylinesincluded{false};
 	std::set<std::string> m_templates; // *.inc templates used by the scenery
 	std::vector<include_instance> m_instances; // includes of the templates; instance handle is index in the vector + 1
 	instance_handle m_instance{0}; // helper, include whose template is being loaded

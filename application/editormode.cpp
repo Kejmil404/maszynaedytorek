@@ -556,6 +556,7 @@ editor_mode::editor_mode() {
 	m_userinterface = std::make_shared<editor_ui>();
 	// the area fill settings live in the node bank window, in the tab of the fill mode
 	ui()->set_fill_options([this]() { render_area_fill(); });
+	ui()->nodebank().scenery_selection([this]() { return selected_nodes(); });
 	ui()->set_gizmo_options([this]() { render_gizmo_options(); });
 	ui()->set_toolbar_options([this]() { render_toolbar(); });
 	ui()->set_workspace_bar([this]() { render_workspaces(); });
@@ -2076,6 +2077,11 @@ void editor_mode::render_terrain_ui()
     {
         auto const &layers{m_streamer.manifest().layers};
         m_terrain_layer = std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1);
+        // the pipette: the material painted where the next click lands is the one to paint with
+        if (ImGui::Button(m_terrain_material_picking ? STR_C("Click on the terrain...") : STR_C("Pipette")))
+            m_terrain_material_picking = false == m_terrain_material_picking;
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", STR_C("The next click takes the material covering the most of the terrain under the cursor.\nAlt+LMB does the same at any time while painting"));
         for (std::size_t i = 0; i < layers.size(); ++i)
         {
             auto label{layers[i].size > 0.f ? format("%zu: %s (%.1f m)", i, layers[i].material.c_str(), layers[i].size) : format("%zu: %s", i, layers[i].material.c_str())};
@@ -3863,6 +3869,24 @@ bool editor_mode::pick_terrain_target()
         return false; // nothing under the cursor
     m_terrain_target = static_cast<float>(world.y);
     m_terrain_status = format(STR_C("Target height: %.2f m"), m_terrain_target);
+    return true;
+}
+
+bool editor_mode::pick_terrain_material()
+{
+    glm::dvec3 world;
+    if (false == terrain_cursor(world))
+        return false; // no terrain under the cursor
+    auto const layer{m_streamer.layer_at(world.x, world.z)};
+    auto const &layers{m_streamer.manifest().layers};
+    if (layer < 0 || layer >= static_cast<int>(layers.size()))
+    {
+        m_terrain_status = STR("No painted terrain under the cursor");
+        return false;
+    }
+    m_terrain_layer = layer;
+    m_terrain_erase = false;
+    m_terrain_status = format(STR_C("Painting with: %s"), layers[layer].material.c_str());
     return true;
 }
 
@@ -8197,6 +8221,15 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
     // with a brush of the terrain the left button works the brush instead of picking nodes
     if (terrain_brush() && Button == GLFW_MOUSE_BUTTON_LEFT)
     {
+        if (m_terrain_tool == terrain_tool::paint && is_press(Action) && (Global.altState || m_terrain_material_picking))
+        {
+            // a click which picks the material doesn't paint anything
+            pick_terrain_material();
+            m_terrain_material_picking = false;
+            mouseHold = false;
+            m_input.mouse.button(Button, Action);
+            return;
+        }
         if (m_terrain_tool == terrain_tool::level && is_press(Action) && (Global.ctrlState || m_terrain_picking))
         {
             // a click which picks the target height doesn't level anything
@@ -8338,6 +8371,13 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
                     m_node = nullptr;
                     select_include(0);
                     ui()->set_node(additive ? previous : nullptr);
+
+                    // the filter of the selection leaves out the nodes of the groups of the node bank which aren't ticked
+                    if (node && mode == nodebank_panel::MODIFY && current_work_area() == work_area::surroundings && false == ui()->nodebank().selectable(*node))
+                    {
+                        ui()->set_status(format(STR_C("\"%s\" left out by the filter of the selection"), name_of(*node).c_str()));
+                        node = nullptr;
+                    }
 
                     // in a scenery opened for editing selection has its limits. nodes of locked layers are off limits.
                     // nodes defined by a scenery template can't be rewritten one by one on save, so a click on one

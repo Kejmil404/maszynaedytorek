@@ -139,6 +139,8 @@ void node_layers::clear()
 	m_shapes.clear();
 	m_shapeserased = false;
 	m_lines.clear();
+	m_binarylines.clear();
+	m_binarylinesincluded = false;
 	m_templates.clear();
 	m_instances.clear();
 	m_instance = 0;

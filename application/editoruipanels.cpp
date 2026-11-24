@@ -27,6 +27,7 @@ http://mozilla.org/MPL/2.0/.
 #include "imgui/imgui_internal.h"
 
 #include <filesystem>
+#include <iterator>
 #include <set>
 
 namespace
@@ -1255,6 +1256,10 @@ void nodebank_panel::manual_list(char const *Id, std::vector<std::string> &List,
 	{
 		ImGui::SetTooltip(STR_C("Adds the template selected in the node bank list"));
 	}
+	if (scenery_add_button())
+	{
+		std::ranges::move(templates_of_scenery(List), std::back_inserter(List));
+	}
 	ImGui::SameLine();
 	if (ImGui::Button(STR_C("Remove")) && Selected >= 0 && Selected < static_cast<int>(List.size()))
 	{
@@ -1490,6 +1495,11 @@ void nodebank_panel::render_sets_window()
 		{
 			ImGui::SetTooltip(STR_C("Adds the template selected in the node bank list"));
 		}
+		if (scenery_add_button())
+		{
+			if (auto const templates{templates_of_scenery(edited->templates)}; false == templates.empty())
+				EditorModelSets.add(setid, templates);
+		}
 		ImGui::SameLine();
 		if (ImGui::Button(STR_C("Remove")) && m_setsentry >= 0)
 		{
@@ -1567,6 +1577,165 @@ bool nodebank_panel::node_selected() const
 {
 	// scenery templates are placed with include directives, the tools which scatter nodes have no use for them
 	return m_selectedtemplate && false == m_selectedtemplate->empty() && false == m_selectedtemplate->starts_with(editor_includes::directive_mark);
+}
+
+std::vector<TAnimModel const *> nodebank_panel::selected_scenery_models() const
+{
+	std::vector<TAnimModel const *> models;
+	if (false == static_cast<bool>(m_sceneryselection))
+		return models;
+	for (auto const *node : m_sceneryselection())
+	{
+		if (auto const *model{dynamic_cast<TAnimModel const *>(node)}; model != nullptr)
+			models.push_back(model);
+	}
+	return models;
+}
+
+std::vector<std::string> nodebank_panel::templates_of_scenery(std::vector<std::string> const &Have) const
+{
+	std::set<std::string> labels;
+	for (auto const &each : Have)
+		labels.insert(generate_node_label(each));
+	std::vector<std::string> templates;
+	for (auto const *model : selected_scenery_models())
+	{
+		std::string text;
+		model->export_as_text(text);
+		if (labels.insert(generate_node_label(text)).second)
+			templates.push_back(std::move(text));
+	}
+	return templates;
+}
+
+bool nodebank_panel::scenery_add_button() const
+{
+	ImGui::SameLine();
+	auto const count{selected_scenery_models().size()};
+	ImGui::BeginDisabled(count == 0);
+	auto const pressed{ImGui::Button(STR_C("Add from the scenery"))};
+	ImGui::EndDisabled();
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+	{
+		if (count == 0)
+			ImGui::SetTooltip("%s", STR_C("Select models in the scenery to add them here"));
+		else
+			ImGui::SetTooltip(STR_C("Adds the %zu models selected in the scenery, each model with its texture once"), count);
+	}
+	return pressed;
+}
+
+namespace
+{
+// a model file as the node bank and the scenery may name it: small letters, forward slashes, no extension, no models/ ahead
+std::string model_key(std::string Model)
+{
+	Model = ToLower(Model);
+	replace_slashes(Model);
+	erase_extension(Model);
+	if (Model.starts_with("models/"))
+		Model.erase(0, std::string_view{"models/"}.size());
+	return Model;
+}
+
+// the model file of a node definition of the node bank
+std::string template_model(std::string const &Template)
+{
+	auto tokenizer{cParser(Template)};
+	tokenizer.getTokens(9, false); // the same leading tokens as the labels skip
+	return model_key(tokenizer.getToken<std::string>(false));
+}
+} // namespace
+
+void nodebank_panel::index_model_groups()
+{
+	if (m_modelgroupsmade && m_modelgroupsbank == m_nodebank.size())
+		return;
+	m_modelgroupsmade = true;
+	m_modelgroupsbank = m_nodebank.size();
+	m_modelgroups.clear();
+	m_modelgroupnames = group_names();
+	for (std::size_t group = 0; group < m_modelgroupnames.size(); ++group)
+	{
+		for (auto const &each : group_templates(group))
+		{
+			auto &groups{m_modelgroups[template_model(each)]};
+			if (groups.empty() || groups.back() != group)
+				groups.push_back(group);
+		}
+	}
+}
+
+bool nodebank_panel::selectable(scene::basic_node const &Node)
+{
+	if (false == EditorSettings.select_filter())
+		return true;
+	auto const *model{dynamic_cast<TAnimModel const *>(&Node)};
+	if (model == nullptr)
+		return EditorSettings.select_filter_other();
+	index_model_groups();
+	auto const found{model->Model() != nullptr ? m_modelgroups.find(model_key(model->Model()->NameGet())) : m_modelgroups.end()};
+	if (found == m_modelgroups.end())
+		return EditorSettings.select_filter_unbanked();
+	auto const &off{EditorSettings.select_filter_off()};
+	return std::ranges::any_of(found->second, [this, &off](std::size_t const Group) { return Group < m_modelgroupnames.size() && false == off.contains(m_modelgroupnames[Group]); });
+}
+
+void nodebank_panel::render_select_filter()
+{
+	auto filter{EditorSettings.select_filter()};
+	bool changed{ImGui::Checkbox(STR_C("Filter the selection"), &filter)};
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("Only the models of the groups of the node bank ticked below get selected, by a click and by a box"));
+	if (changed)
+		EditorSettings.select_filter(filter);
+	if (filter)
+	{
+		index_model_groups();
+		auto &off{EditorSettings.select_filter_off()};
+		if (ImGui::SmallButton(STR_C("All##selectfilter")))
+		{
+			off.clear();
+			changed = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::SmallButton(STR_C("None##selectfilter")))
+		{
+			std::ranges::copy(m_modelgroupnames, std::inserter(off, off.end()));
+			changed = true;
+		}
+		auto const rows{std::min<float>(10.0f, static_cast<float>(m_modelgroupnames.size()) + 0.5f)};
+		if (ImGui::BeginChild("##selectfilter", ImVec2(0.0f, ImGui::GetFrameHeightWithSpacing() * rows), ImGuiChildFlags_Borders))
+		{
+			for (std::size_t group = 0; group < m_modelgroupnames.size(); ++group)
+			{
+				auto const &name{m_modelgroupnames[group]};
+				bool on{false == off.contains(name)};
+				if (false == ImGui::Checkbox(format("%s##selectfilter%zu", name.c_str(), group).c_str(), &on))
+					continue;
+				if (on)
+					off.erase(name);
+				else
+					off.insert(name);
+				changed = true;
+			}
+		}
+		ImGui::EndChild();
+		auto unbanked{EditorSettings.select_filter_unbanked()};
+		if (ImGui::Checkbox(STR_C("Models outside of the node bank"), &unbanked))
+		{
+			EditorSettings.select_filter_unbanked(unbanked);
+			changed = true;
+		}
+		auto other{EditorSettings.select_filter_other()};
+		if (ImGui::Checkbox(STR_C("Other nodes (sounds, memory cells and the like)"), &other))
+		{
+			EditorSettings.select_filter_other(other);
+			changed = true;
+		}
+	}
+	if (changed)
+		EditorSettings.save();
 }
 
 std::vector<std::string> nodebank_panel::group_names() const

@@ -163,6 +163,14 @@ class nodebank_panel : public ui_panel
 	void open_sets_window(int const Setid = 0);
 	// content drawn in the window of the node bank in its place, with its own title (a field of work of the editor uses the window
 	// for its own browser); none: the node bank
+	// the filter of the selection in the surroundings, in the options of the tool, and whether it lets the node be selected
+	void render_select_filter();
+	bool selectable(scene::basic_node const &Node);
+	// where the lists of the brush and the fill get the models selected in the scenery from
+	void scenery_selection(std::function<std::vector<scene::basic_node *>()> Source)
+	{
+		m_sceneryselection = std::move(Source);
+	}
 	void stand_in(std::function<void()> Content, std::string Title)
 	{
 		m_standin = std::move(Content);
@@ -194,6 +202,18 @@ class nodebank_panel : public ui_panel
 	void preview_popup(std::pair<std::string, std::shared_ptr<std::string>> const &Entry);
 	// true if the node bank selection is a definition of a node, which the hand-made lists and the model sets can take
 	bool node_selected() const;
+	// the models selected in the scenery, and the definitions of those not in Have yet: each model with its texture once
+	std::vector<TAnimModel const *> selected_scenery_models() const;
+	std::vector<std::string> templates_of_scenery(std::vector<std::string> const &Have) const;
+	// the button which adds the models selected in the scenery to a list; true once it's pressed
+	bool scenery_add_button() const;
+	std::function<std::vector<scene::basic_node *>()> m_sceneryselection; // the nodes selected in the scenery
+	// the groups of the node bank each model is in, by its file, for the filter of the selection; made again when the bank changes
+	void index_model_groups();
+	std::unordered_map<std::string, std::vector<std::size_t>> m_modelgroups;
+	std::vector<std::string> m_modelgroupnames;
+	std::size_t m_modelgroupsbank{0}; // the size of the node bank the index was made of
+	bool m_modelgroupsmade{false};
 	// members:
 	std::function<void()> m_standin;
 	std::string m_standintitle;

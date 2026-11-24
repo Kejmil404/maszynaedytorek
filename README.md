@@ -48,10 +48,13 @@ Sceneria zapisana tym edytorem wczytuje się w oryginalnym buildzie: zmiany są 
 - Narzędzia Zaznaczanie (1) i Wstawianie (2) w trybie Eventy, jak w Otoczeniu; odsłuch i zasięgi dźwięków na pasku.
 - Światła modeli w Inspektorze: tryb każdego światła (zgaszone, zapalone, miga, pulsuje, po zmroku), kolor i płynna zmiana, z podglądem.
 - Przełączniki świateł: event `lights` z launcherem (o godzinie, zapal/zgaś o dwóch godzinach, na klawisz, przy zbliżeniu), kilka modeli naraz, warunek na komórce pamięci, „Wypróbuj”.
-- Zakładka Kable (F7): prowadzenie kabli (`line_strip`) ze zwisem przęseł, przyciąganie do punktów modeli i innych kabli, edycja punktów gizmem, przejmowanie do edycji linii z plików scenerii.
+- Zakładka Kable (F7): prowadzenie kabli (`lines`) ze zwisem przęseł, przyciąganie do punktów modeli i innych kabli, edycja punktów gizmem, przejmowanie do edycji linii z plików scenerii.
 - Drutowanie: przewody prowadzone automatycznie po kolejno wskazanych słupach, według bloku dla druty.exe z ich plików .inc, z losowym zwisem przęseł w zadanym zakresie.
 - Kable widoczne na żywo w scenerii podczas edycji; zaznaczanie kilku kabli (Shift+LPM, Shift i prostokąt) ze wspólną edycją.
-- Kable zapisywane jako osobny węzeł na każde przęsło (długie przęsła cięte na kawałki do 50 m), tak jak robi to druty.exe: długie kable nie znikają już zależnie od kąta kamery.
+- Kable zapisywane w formacie `lines` (pary punktów), osobny węzeł na każde przęsło (długie przęsła cięte na kawałki do 50 m), tak jak robi to druty.exe; ostrzeżenie w zakładce Kable, gdy sceneria bierze linie z pliku `.sbt` i pomija te z tekstu.
+- Pędzel i wypełnianie: „Dodaj ze scenerii” dodaje do listy lub zestawu modele zaznaczone na scenerii.
+- Malowanie terenu: pipeta materiału (przycisk albo Alt+LPM).
+- Zaznaczanie w otoczeniu: filtr po kategoriach banku obiektów (opcje narzędzia), dla kliknięcia i prostokąta.
 
 
 ## Table of Contents

@@ -149,6 +149,14 @@ bool editorSettings::load()
 			parse(value, m_panel_transparency);
 		else if (key == "experimental")
 			parse(value, m_experimental);
+		else if (key == "select_filter")
+			m_select_filter = (value == "1");
+		else if (key == "select_filter_off")
+			m_select_filter_off.insert(decoded(value));
+		else if (key == "select_filter_unbanked")
+			m_select_filter_unbanked = (value == "1");
+		else if (key == "select_filter_other")
+			m_select_filter_other = (value == "1");
 		else if (key == "autosave")
 			parse(value, m_autosave);
 		else if (key == "autosave_minutes")
@@ -267,6 +275,11 @@ bool editorSettings::save()
 	stream << "panel_brightness " << m_panel_brightness << "\n";
 	stream << "panel_transparency " << m_panel_transparency << "\n";
 	stream << "experimental " << (m_experimental ? 1 : 0) << "\n";
+	stream << "select_filter " << (m_select_filter ? 1 : 0) << "\n";
+	for (auto const &group : m_select_filter_off)
+		stream << "select_filter_off " << encoded(group) << "\n";
+	stream << "select_filter_unbanked " << (m_select_filter_unbanked ? 1 : 0) << "\n";
+	stream << "select_filter_other " << (m_select_filter_other ? 1 : 0) << "\n";
 	stream << "autosave " << (m_autosave ? 1 : 0) << "\n";
 	stream << "autosave_minutes " << m_autosave_minutes << "\n";
 	stream << "first_steps " << (m_first_steps ? 1 : 0) << "\n";

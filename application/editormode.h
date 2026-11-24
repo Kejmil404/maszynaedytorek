@@ -927,6 +927,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void remove_selected_chunks();
 	// takes the height of whatever is under the cursor (terrain, track, model) for the target of the level brush. returns: false if there's nothing
 	bool pick_terrain_target();
+	bool pick_terrain_material();
 	bool terrain_clicking() const { return m_terrain_tool == terrain_tool::chunks || m_terrain_tool == terrain_tool::spacing || m_terrain_tool == terrain_tool::water || m_terrain_tool == terrain_tool::fill; }
 	// fills the outlined area with the material of the chosen palette entry, turned by m_paint_rotation
 	void fill_terrain_area();
@@ -1043,6 +1044,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool m_terrain_target_from_stroke{false}; // the target is the height where a stroke starts
 	bool m_terrain_stroke{false}; // a stroke of the brush is under way
 	bool m_terrain_picking{false}; // the next click picks the target height
+	bool m_terrain_material_picking{false}; // the next click picks the material painted
 	int m_terrain_layer{0};               // entry of the palette painted
 	bool m_terrain_erase{false};          // the paint tool takes the painted materials away instead, back to the first one of each chunk
 	bool m_terrain_erase_only{false};     // only the material chosen in the palette

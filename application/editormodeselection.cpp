@@ -210,7 +210,9 @@ void editor_mode::finish_model_box()
 	glm::dvec3 const camera{Global.pCamera.Pos};
 	auto const reach{static_cast<double>(m_box_reach)};
 	auto const chosen{selected_nodes()};
+	auto const filtered{current_work_area() == work_area::surroundings};
 	std::size_t added{0};
+	std::size_t left{0};
 	for (auto *model : simulation::Instances.sequence())
 	{
 		// as with a click: the models of layers which can be edited, not placed by a template; within the reach of the box
@@ -220,12 +222,20 @@ void editor_mode::finish_model_box()
 			continue;
 		if (std::ranges::find(chosen, model) != chosen.end() || std::ranges::find(m_selection, model) != m_selection.end() || model == m_node)
 			continue;
+		if (filtered && false == ui()->nodebank().selectable(*model))
+		{
+			++left;
+			continue;
+		}
 		select_node(model, true);
 		++added;
 	}
 	ui()->set_node(m_node);
 	auto const count{selected_nodes().size()};
-	ui()->set_status(format(STR_C("%zu models in the box added, %zu selected; Del deletes them, the gizmo moves them all, End drops them to the ground"), added, count));
+	auto status{format(STR_C("%zu models in the box added, %zu selected; Del deletes them, the gizmo moves them all, End drops them to the ground"), added, count)};
+	if (left > 0)
+		status += format(STR_C(" (%zu left out by the filter of the selection)"), left);
+	ui()->set_status(status);
 }
 
 void editor_mode::draw_model_box() const

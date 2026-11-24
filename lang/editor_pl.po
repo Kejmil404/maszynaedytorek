@@ -15381,3 +15381,60 @@ msgstr "Model staje prosto w środku dawnego wygięcia, obrócony wzdłuż toru 
 
 msgid "A template bent along the track is made plain again by Ctrl+Z only"
 msgstr "Wygięty szablon da się wyprostować tylko przez Ctrl+Z"
+
+msgid "The lines of this scenery come from %s, named by its terrain directive: the game, the release as well, skips the lines of the text files, the cables among them, until that file is made again out of the text of the scenery"
+msgstr "Linie tej scenerii pochodzą z pliku %s, dołączonego dyrektywą terrain: gra, także oryginalny build, pomija linie z plików tekstowych, w tym kable, dopóki ten plik nie zostanie zbudowany na nowo z tekstu scenerii"
+
+msgid "The lines of this scenery were loaded from %s: the game skips the lines of the text files while it's there. A save with the cables changed removes it, and the game makes it again on the next load, with the cables"
+msgstr "Linie tej scenerii wczytano z pliku %s: póki on istnieje, gra pomija linie z plików tekstowych. Zapis ze zmienionymi kablami go usuwa, a gra buduje go na nowo przy następnym wczytaniu, już z kablami"
+
+msgid "Add from the scenery"
+msgstr "Dodaj ze scenerii"
+
+msgid "Select models in the scenery to add them here"
+msgstr "Zaznacz modele na scenerii, żeby je tu dodać"
+
+msgid "Adds the %zu models selected in the scenery, each model with its texture once"
+msgstr "Dodaje modele zaznaczone na scenerii (%zu), każdy model z daną teksturą raz"
+
+msgid "Pipette"
+msgstr "Pipeta"
+
+msgid "Click on the terrain..."
+msgstr "Kliknij w teren..."
+
+msgid "The next click takes the material covering the most of the terrain under the cursor.\nAlt+LMB does the same at any time while painting"
+msgstr "Następne kliknięcie bierze materiał, który przeważa w terenie pod kursorem.\nAlt+LPM robi to samo w każdej chwili podczas malowania"
+
+msgid "No painted terrain under the cursor"
+msgstr "Pod kursorem nie ma malowanego terenu"
+
+msgid "Painting with: %s"
+msgstr "Malowanie materiałem: %s"
+
+msgid "Filter the selection"
+msgstr "Filtruj zaznaczenie"
+
+msgid "Only the models of the groups of the node bank ticked below get selected, by a click and by a box"
+msgstr "Zaznaczają się tylko modele z kategorii banku obiektów zaznaczonych niżej, kliknięciem i prostokątem"
+
+msgid "All##selectfilter"
+msgstr "Wszystkie##selectfilter"
+
+msgid "None##selectfilter"
+msgstr "Żadne##selectfilter"
+
+msgid "Models outside of the node bank"
+msgstr "Modele spoza banku obiektów"
+
+msgid "Other nodes (sounds, memory cells and the like)"
+msgstr "Inne obiekty (dźwięki, komórki pamięci itp.)"
+
+msgid "\"%s\" left out by the filter of the selection"
+msgstr "\"%s\" pominięty przez filtr zaznaczenia"
+
+msgid " (%zu left out by the filter of the selection)"
+msgstr " (pominięte przez filtr zaznaczenia: %zu)"
+
+msgid "Selection filter on"
+msgstr "Filtr zaznaczenia aktywny"
